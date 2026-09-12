@@ -4,6 +4,7 @@ import { Heart, Star, Truck } from "lucide-react";
 import { ancestorsOf, catalogProducts, discountOf, productsInCategory } from "@/data/catalog";
 import { waLink } from "@/data/products";
 import { cedi, useStore } from "@/components/store";
+import { recordPageView } from "@/data/analytics-store";
 import { Breadcrumbs, PageBody } from "@/components/catalog/CategoryShell";
 import { CatalogProductCard } from "@/components/catalog/ProductCard";
 
@@ -63,7 +64,12 @@ function ProductDetail() {
   const { addToCart, favorites, toggleFavorite } = useStore();
   const [active, setActive] = useState(0);
 
-  useEffect(() => setActive(0), [id]);
+  useEffect(() => {
+    setActive(0);
+    if (product) {
+      recordPageView(`/product/${product.id}`, product.name, product.categoryId, product.id);
+    }
+  }, [id, product]);
 
   if (!product) return <ProductMissing />;
 

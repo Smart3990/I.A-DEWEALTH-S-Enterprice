@@ -1,112 +1,12 @@
 import { useState, useEffect, useRef, type FormEvent } from "react";
 import { CheckCircle2, ChevronLeft, ChevronRight, PenLine, Star, ThumbsUp, X } from "lucide-react";
+import { useApprovedReviews, submitReviewForApproval, type ReviewItem } from "@/data/reviews-store";
 import { supabase } from "@/integrations/supabase/client";
 
-export interface ReviewItem {
-  id: string;
-  name: string;
-  location: string;
-  rating: number;
-  date: string;
-  title: string;
-  comment: string;
-  product?: string;
-  verified: boolean;
-  helpfulCount: number;
-  initials: string;
-}
-
-const INITIAL_REVIEWS: ReviewItem[] = [
-  {
-    id: "rev-1",
-    name: "Kwabena Mensah",
-    location: "East Legon, Accra",
-    rating: 5,
-    date: "2 days ago",
-    title: "Super fast delivery & 100% original product",
-    comment:
-      "Ordered the 65W GaN fast charger at 11:00 AM and it was delivered to my office in East Legon by 2:15 PM. Inspected the packaging and tested it before paying the dispatch rider with MoMo. Legit shop!",
-    product: "Baseus 65W GaN Fast Charger",
-    verified: true,
-    helpfulCount: 28,
-    initials: "KM",
-  },
-  {
-    id: "rev-2",
-    name: "Akosua Serwaa",
-    location: "Kumasi, Ashanti Region",
-    rating: 5,
-    date: "5 days ago",
-    title: "Smooth delivery to Kumasi via VIP bus",
-    comment:
-      "I was skeptical ordering electronics from Accra to Kumasi, but the WhatsApp team was so reassuring. They sent photos of my package and waybill. Received it the next morning in perfect sealed condition.",
-    product: "Apple AirPods Pro 2 (USB-C)",
-    verified: true,
-    helpfulCount: 19,
-    initials: "AS",
-  },
-  {
-    id: "rev-3",
-    name: "Emmanuel Owusu",
-    location: "Airport Residential, Accra",
-    rating: 5,
-    date: "1 week ago",
-    title: "Best prices for authentic gadgets in Ghana",
-    comment:
-      "I’ve bought gadgets in Accra for years, but I.A Dewealth stands out for fair pricing and genuine stock. Sound quality on this Anker speaker is incredible, no distortion at high volumes.",
-    product: "Anker Soundcore Motion+ Bluetooth Speaker",
-    verified: true,
-    helpfulCount: 34,
-    initials: "EO",
-  },
-  {
-    id: "rev-4",
-    name: "Naa Korkor Mensah",
-    location: "Spintex Road, Accra",
-    rating: 5,
-    date: "1 week ago",
-    title: "Seamless WhatsApp checkout and helpful support",
-    comment:
-      "The WhatsApp ordering is straightforward. Just clicked checkout, sent my delivery location on Spintex, and received my smartwatch the same afternoon. Battery life is amazing.",
-    product: "Oraimo Watch 4 Plus Smartwatch",
-    verified: true,
-    helpfulCount: 15,
-    initials: "NK",
-  },
-  {
-    id: "rev-5",
-    name: "Dennis Boateng",
-    location: "Takoradi, Western Region",
-    rating: 5,
-    date: "2 weeks ago",
-    title: "Honest customer service, parcel arrived intact",
-    comment:
-      "Their customer care is 10/10. Answered all my technical questions before I committed. Delivered safely to Takoradi parcel office. Will buy again for my family.",
-    product: "Xiaomi Mi TV Box S 4K (2nd Gen)",
-    verified: true,
-    helpfulCount: 22,
-    initials: "DB",
-  },
-  {
-    id: "rev-6",
-    name: "Priscilla Addo",
-    location: "Tema Community 1",
-    rating: 5,
-    date: "2 weeks ago",
-    title: "Very polite rider and original quality cable",
-    comment:
-      "Got the 100W braided charging cables. Charges my MacBook at full speed without heating up. Dispatch rider called before arriving and was very polite.",
-    product: "Baseus 100W USB-C PD Cable (2m)",
-    verified: true,
-    helpfulCount: 12,
-    initials: "PA",
-  },
-];
-
-const LOCAL_STORAGE_KEY = "ia_dewealth_user_reviews_v1";
+export type { ReviewItem };
 
 export function CustomerReviews() {
-  const [reviews, setReviews] = useState<ReviewItem[]>(INITIAL_REVIEWS);
+  const reviews = useApprovedReviews();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [helpfulLiked, setHelpfulLiked] = useState<Record<string, boolean>>({});
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -123,21 +23,6 @@ export function CustomerReviews() {
   const [recommend, setRecommend] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successToast, setSuccessToast] = useState(false);
-
-  // Load saved user reviews on mount
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (stored) {
-        const parsed: ReviewItem[] = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setReviews([...parsed, ...INITIAL_REVIEWS]);
-        }
-      }
-    } catch (e) {
-      console.warn("Could not load stored reviews:", e);
-    }
-  }, []);
 
   // Auto-scroll horizontally every 3 seconds
   useEffect(() => {
@@ -195,9 +80,6 @@ export function CustomerReviews() {
   const handleHelpfulClick = (id: string) => {
     if (helpfulLiked[id]) return;
     setHelpfulLiked((prev) => ({ ...prev, [id]: true }));
-    setReviews((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, helpfulCount: r.helpfulCount + 1 } : r)),
-    );
   };
 
   const handleSubmitReview = async (e: FormEvent) => {
@@ -206,76 +88,57 @@ export function CustomerReviews() {
 
     setIsSubmitting(true);
 
-    const initials = formName
-      .trim()
-      .split(" ")
-      .map((w) => w[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
-
-    const newReview: ReviewItem = {
-      id: `usr-${Date.now()}`,
-      name: formName.trim(),
-      location: formLocation.trim() || "Accra, Ghana",
-      rating: formRating,
-      date: "Just now",
-      title: formTitle.trim() || "Great experience with I.A Dewealth",
-      comment: formComment.trim(),
-      product: formProduct.trim() || "Purchased Gadget",
-      verified: true,
-      helpfulCount: 1,
-      initials: initials || "CU",
-    };
-
-    // Save to local storage
     try {
-      const existingStr = localStorage.getItem(LOCAL_STORAGE_KEY);
-      const existing: ReviewItem[] = existingStr ? JSON.parse(existingStr) : [];
-      const updated = [newReview, ...existing];
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
-    } catch (err) {
-      console.warn("Failed to cache review:", err);
-    }
-
-    // Also optionally log to inquiries table in Supabase so store admins can see it!
-    try {
-      await supabase.from("inquiries").insert({
-        item_count: 1,
-        items: [
-          {
-            type: "customer_review",
-            name: formName,
-            rating: formRating,
-            product: formProduct,
-            location: formLocation,
-            recommend,
-          },
-        ],
-        note: `New Customer Review (${formRating} Stars):\nName: ${formName} (${formLocation})\nProduct: ${formProduct}\nReview: ${formComment}`,
-        status: "new",
-        total: 0,
+      // 1. Submit for admin approval
+      submitReviewForApproval({
+        name: formName.trim(),
+        location: formLocation.trim() || "Accra, Ghana",
+        rating: formRating,
+        title: formTitle.trim() || "Customer Review",
+        comment: formComment.trim(),
+        product: formProduct.trim() || "Purchased Gadget",
       });
-    } catch (err) {
-      console.warn("Could not log review to database:", err);
+
+      // 2. Also log to database so admin has redundancy
+      try {
+        await supabase.from("inquiries").insert({
+          item_count: 1,
+          items: [
+            {
+              type: "customer_rating_review",
+              name: formName.trim(),
+              rating: formRating,
+              product: formProduct.trim(),
+              location: formLocation.trim(),
+              title: formTitle.trim(),
+              comment: formComment.trim(),
+              status: "pending_approval",
+            },
+          ],
+          note: `New Customer Rating (${formRating} Stars) - Awaiting Admin Approval:\nName: ${formName.trim()} (${formLocation.trim()})\nProduct: ${formProduct.trim()}\nTitle: ${formTitle.trim()}\nReview: ${formComment.trim()}`,
+          status: "pending_approval",
+          total: 0,
+        });
+      } catch (err) {
+        console.warn("Could not log review to database:", err);
+      }
+    } finally {
+      setIsSubmitting(false);
+      setSuccessToast(true);
+
+      // Reset form
+      setFormName("");
+      setFormLocation("");
+      setFormProduct("");
+      setFormRating(5);
+      setFormTitle("");
+      setFormComment("");
+
+      setTimeout(() => {
+        setSuccessToast(false);
+        setIsModalOpen(false);
+      }, 2500);
     }
-
-    setReviews((prev) => [newReview, ...prev]);
-    setIsSubmitting(false);
-    setSuccessToast(true);
-
-    // Reset form
-    setFormName("");
-    setFormLocation("");
-    setFormProduct("");
-    setFormRating(5);
-    setFormTitle("");
-    setFormComment("");
-
-    setTimeout(() => {
-      setSuccessToast(false);
-      setIsModalOpen(false);
-    }, 1800);
   };
 
   return (
@@ -428,8 +291,10 @@ export function CustomerReviews() {
               <div className="mt-4 flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800">
                 <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />
                 <div className="text-xs">
-                  <p className="font-bold">Thank you for sharing your review!</p>
-                  <p className="text-emerald-700">Your review is now live on our website.</p>
+                  <p className="font-bold">Thank you for submitting your rating!</p>
+                  <p className="text-emerald-700">
+                    Your review will appear on the homepage once approved by admin.
+                  </p>
                 </div>
               </div>
             )}

@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Pencil, Trash2, X, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { logActivity } from "@/lib/admin-auth";
+import { ImageUploadInput } from "@/components/admin/ImageUploadInput";
 
 export function PageHead({
   title,
@@ -66,7 +67,7 @@ export function Btn({
 export type Field = {
   key: string;
   label: string;
-  type?: "text" | "number" | "textarea" | "bool" | "select";
+  type?: "text" | "number" | "textarea" | "bool" | "select" | "image";
   options?: { value: string; label: string }[];
   placeholder?: string;
   default?: any;
@@ -82,6 +83,26 @@ export function FieldInput({
   value: any;
   onChange: (v: any) => void;
 }) {
+  const isImageField =
+    field.type === "image" ||
+    field.key.includes("logo") ||
+    field.key.includes("favicon") ||
+    field.key.includes("image_url") ||
+    field.key.includes("banner");
+
+  if (isImageField) {
+    return (
+      <div className={field.full ? "sm:col-span-2" : ""}>
+        <ImageUploadInput
+          label={field.label}
+          value={value ?? ""}
+          onChange={onChange}
+          placeholder={field.placeholder || "https://..."}
+        />
+      </div>
+    );
+  }
+
   const base =
     "w-full rounded-xl bg-slate-100 px-3.5 py-2 text-xs font-medium text-slate-800 outline-none focus:bg-white border-0 transition";
 
@@ -305,11 +326,27 @@ export function ResourceManager({
                   <tr key={r[idField ?? "id"]} className="hover:bg-slate-50/60 transition">
                     {columns.map((c) => (
                       <td key={c.key} className="py-3 pr-4 align-top text-xs text-slate-700">
-                        {typeof r[c.key] === "boolean"
-                          ? r[c.key]
-                            ? "Yes"
-                            : "No"
-                          : String(r[c.key] ?? "")}
+                        {typeof r[c.key] === "boolean" ? (
+                          r[c.key] ? (
+                            "Yes"
+                          ) : (
+                            "No"
+                          )
+                        ) : r[c.key] &&
+                          typeof r[c.key] === "string" &&
+                          (c.key.includes("image") ||
+                            c.key.includes("banner") ||
+                            c.key.includes("logo")) ? (
+                          <div className="flex items-center gap-2">
+                            <img
+                              src={r[c.key]}
+                              alt=""
+                              className="h-8 w-14 rounded-md object-cover border border-slate-200"
+                            />
+                          </div>
+                        ) : (
+                          String(r[c.key] ?? "")
+                        )}
                       </td>
                     ))}
                     {canWrite && (

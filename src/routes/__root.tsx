@@ -173,7 +173,11 @@ function StorefrontShell() {
     [data],
   );
 
-  if (data?.products.length) applyCatalogSnapshot(data.categories, data.products);
+  useEffect(() => {
+    if (data?.products.length) {
+      applyCatalogSnapshot(data.categories, data.products);
+    }
+  }, [data]);
 
   if (isAdmin) {
     return (

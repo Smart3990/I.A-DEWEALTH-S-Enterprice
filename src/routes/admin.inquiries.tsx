@@ -1,4 +1,4 @@
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, useEffect, useCallback, type FormEvent } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   MessageSquare,
@@ -24,6 +24,7 @@ import {
   deleteInquiry,
   type CustomerInquiry,
 } from "@/data/inquiries-store";
+import { logActivity } from "@/lib/admin-auth";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/inquiries")({
@@ -39,10 +40,7 @@ function AdminInquiriesPage() {
   const [internalNote, setInternalNote] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const refreshData = async () => {
-    const list = getInquiries();
-    setInquiries(list);
-
+  const refreshData = useCallback(async () => {
     setIsRefreshing(true);
     try {
       const fresh = await fetchInquiriesFromServer();
@@ -56,20 +54,32 @@ function AdminInquiriesPage() {
       }
     } catch (e) {
       console.warn("Failed to fetch fresh inquiries from server:", e);
+      setInquiries(getInquiries());
     } finally {
       setIsRefreshing(false);
     }
-  };
+  }, [selectedInquiry]);
 
   useEffect(() => {
+    let isMounted = true;
+    setInquiries(getInquiries());
     refreshData();
+
+    // Poll every 10 seconds for real-time customer submissions
+    const pollInterval = setInterval(() => {
+      if (isMounted) refreshData();
+    }, 10000);
+
     const handleUpdate = () => {
-      setInquiries(getInquiries());
+      if (isMounted) setInquiries(getInquiries());
     };
     window.addEventListener("ia_inquiries_updated", handleUpdate);
-    return () => window.removeEventListener("ia_inquiries_updated", handleUpdate);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    return () => {
+      isMounted = false;
+      clearInterval(pollInterval);
+      window.removeEventListener("ia_inquiries_updated", handleUpdate);
+    };
+  }, [refreshData]);
 
   const handleSelect = (item: CustomerInquiry) => {
     setSelectedInquiry(item);
@@ -79,6 +89,7 @@ function AdminInquiriesPage() {
 
   const handleStatusChange = (id: string, newStatus: CustomerInquiry["status"]) => {
     updateInquiryStatus(id, newStatus, internalNote);
+    logActivity(`Updated customer inquiry #${id.slice(0, 6)} status to ${newStatus}`);
     toast.success(`Inquiry marked as ${newStatus}`);
     refreshData();
   };
@@ -87,13 +98,18 @@ function AdminInquiriesPage() {
     e.preventDefault();
     if (!selectedInquiry) return;
     updateInquiryStatus(selectedInquiry.id, selectedInquiry.status, internalNote);
+    logActivity(
+      `Saved internal notes on inquiry #${selectedInquiry.id.slice(0, 6)} (${selectedInquiry.name})`,
+    );
     toast.success("Internal note saved");
     refreshData();
   };
 
   const handleDelete = (id: string) => {
     if (confirm("Are you sure you want to delete this customer inquiry?")) {
+      const target = inquiries.find((i) => i.id === id);
       deleteInquiry(id);
+      logActivity(`Deleted customer inquiry #${id.slice(0, 6)} from ${target?.name ?? "customer"}`);
       if (selectedInquiry?.id === id) {
         setSelectedInquiry(null);
       }
@@ -148,21 +164,21 @@ function AdminInquiriesPage() {
 
       {/* KPI Stats */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <div className="rounded-2xl bg-white p-4 shadow-xs border-0">
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
           <span className="text-xs font-semibold text-slate-500">Total Inquiries</span>
           <p className="mt-1 text-xl font-black text-slate-900">{inquiries.length}</p>
         </div>
-        <div className="rounded-2xl bg-white p-4 shadow-xs border-0">
-          <span className="text-xs font-semibold text-slate-500">New / Unhandled</span>
-          <p className="mt-1 text-xl font-black text-slate-900">{newCount}</p>
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 shadow-xs">
+          <span className="text-xs font-bold text-emerald-800">New / Unhandled</span>
+          <p className="mt-1 text-xl font-black text-emerald-700">{newCount}</p>
         </div>
-        <div className="rounded-2xl bg-white p-4 shadow-xs border-0">
-          <span className="text-xs font-semibold text-slate-500">In Progress</span>
-          <p className="mt-1 text-xl font-black text-slate-900">{inProgressCount}</p>
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4 shadow-xs">
+          <span className="text-xs font-bold text-amber-800">In Progress</span>
+          <p className="mt-1 text-xl font-black text-amber-700">{inProgressCount}</p>
         </div>
-        <div className="rounded-2xl bg-white p-4 shadow-xs border-0">
-          <span className="text-xs font-semibold text-slate-500">Responded / Closed</span>
-          <p className="mt-1 text-xl font-black text-slate-900">{respondedCount}</p>
+        <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-4 shadow-xs">
+          <span className="text-xs font-bold text-blue-800">Responded / Closed</span>
+          <p className="mt-1 text-xl font-black text-blue-700">{respondedCount}</p>
         </div>
       </div>
 
@@ -226,7 +242,15 @@ function AdminInquiriesPage() {
                       <div>
                         <div className="flex items-center gap-2">
                           <h3 className="text-xs font-bold text-slate-900">{item.name}</h3>
-                          <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-700 border-0">
+                          <span
+                            className={`rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide border ${
+                              item.status === "new"
+                                ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+                                : item.status === "in-progress"
+                                  ? "bg-amber-100 text-amber-800 border-amber-200"
+                                  : "bg-blue-100 text-blue-800 border-blue-200"
+                            }`}
+                          >
                             {item.status}
                           </span>
                         </div>
@@ -257,7 +281,15 @@ function AdminInquiriesPage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <h2 className="text-base font-bold text-slate-900">{selectedInquiry.name}</h2>
-                    <span className="rounded-md bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-700 border-0">
+                    <span
+                      className={`rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide border ${
+                        selectedInquiry.status === "new"
+                          ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+                          : selectedInquiry.status === "in-progress"
+                            ? "bg-amber-100 text-amber-800 border-amber-200"
+                            : "bg-blue-100 text-blue-800 border-blue-200"
+                      }`}
+                    >
                       {selectedInquiry.status}
                     </span>
                   </div>
@@ -359,9 +391,9 @@ function AdminInquiriesPage() {
                     <button
                       type="button"
                       onClick={() => handleStatusChange(selectedInquiry.id, "new")}
-                      className={`rounded-md px-2.5 py-1 text-[10px] font-bold ${
+                      className={`rounded-lg px-3 py-1 text-xs font-bold transition ${
                         selectedInquiry.status === "new"
-                          ? "bg-amber-600 text-white"
+                          ? "bg-emerald-600 text-white shadow-xs"
                           : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                       }`}
                     >
@@ -370,9 +402,9 @@ function AdminInquiriesPage() {
                     <button
                       type="button"
                       onClick={() => handleStatusChange(selectedInquiry.id, "in-progress")}
-                      className={`rounded-md px-2.5 py-1 text-[10px] font-bold ${
+                      className={`rounded-lg px-3 py-1 text-xs font-bold transition ${
                         selectedInquiry.status === "in-progress"
-                          ? "bg-blue-600 text-white"
+                          ? "bg-amber-600 text-white shadow-xs"
                           : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                       }`}
                     >
@@ -381,9 +413,9 @@ function AdminInquiriesPage() {
                     <button
                       type="button"
                       onClick={() => handleStatusChange(selectedInquiry.id, "responded")}
-                      className={`rounded-md px-2.5 py-1 text-[10px] font-bold ${
+                      className={`rounded-lg px-3 py-1 text-xs font-bold transition ${
                         selectedInquiry.status === "responded"
-                          ? "bg-emerald-600 text-white"
+                          ? "bg-blue-600 text-white shadow-xs"
                           : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                       }`}
                     >

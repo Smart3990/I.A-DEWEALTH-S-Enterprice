@@ -14,6 +14,7 @@ import {
   Users,
   History,
   LogOut,
+  Star,
   ShieldCheck,
   Eye,
   EyeOff,
@@ -23,6 +24,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminSession } from "@/lib/admin-auth";
+import { getPendingReviews } from "@/data/reviews-store";
 import brandLogo from "@/assets/ia-dewealth-logo.png";
 
 export const Route = createFileRoute("/admin")({
@@ -59,6 +61,7 @@ const navGroups: NavGroup[] = [
       { to: "/admin/products", label: "Products", icon: Package, badgeKey: "products" },
       { to: "/admin/categories", label: "Categories", icon: FolderTree, badgeKey: "categories" },
       { to: "/admin/inquiries", label: "Inquiries", icon: MessageSquare, badgeKey: "inquiries" },
+      { to: "/admin/reviews", label: "Customer Reviews", icon: Star, badgeKey: "reviews" },
     ],
   },
   {
@@ -97,13 +100,15 @@ function AdminLayout() {
           .then((d) => (Array.isArray(d?.inquiries) ? d.inquiries.length : 0))
           .catch(() => 0),
       ]);
+      const pendingReviews = getPendingReviews().length;
       return {
         products: prods.count ?? 0,
         categories: cats.count ?? 0,
         inquiries: typeof inqRes === "number" ? inqRes : 0,
+        reviews: pendingReviews,
       };
     },
-    staleTime: 30_000,
+    staleTime: 10_000,
   });
 
   if (loading) {
@@ -127,7 +132,7 @@ function AdminLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 antialiased">
+    <div className="min-h-screen bg-slate-50 text-slate-800 antialiased bg-[radial-gradient(#cbd5e1_1.25px,transparent_1.25px)] [background-size:20px_20px]">
       {/* Top Professional Command Header */}
       <header className="sticky top-0 z-40 bg-white shadow-xs border-0">
         <div className="flex w-full items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
@@ -154,10 +159,10 @@ function AdminLayout() {
               to="/"
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-xl bg-slate-100 px-3.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-200/80 hover:text-[#00a884] border-0"
+              className="inline-flex items-center gap-1 bg-transparent border-0 p-0 text-xs font-bold text-[#ea580c] transition hover:text-[#c2410c] shadow-none"
             >
-              <span>View Storefront</span>
-              <span className="text-slate-400">↗</span>
+              <span>Shop View</span>
+              <span className="text-[#ea580c]">↗</span>
             </Link>
 
             <div className="h-4 w-px bg-slate-200" />

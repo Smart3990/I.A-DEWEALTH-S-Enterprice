@@ -34,7 +34,7 @@ export function updateCategoryBanner(
     bannerCTA?: string;
     name?: string;
     isActive?: boolean;
-  }
+  },
 ) {
   const current = getCustomCategories();
   const updated = current.map((c) => (c.id === id ? { ...c, ...bannerPatch } : c));
@@ -126,14 +126,11 @@ export function CategoryProvider({
   children: ReactNode;
 }) {
   const [customList, setCustomList] = useState<Category[]>(() =>
-    categories ?? getCustomCategories(),
+    categories ? [] : getCustomCategories(),
   );
 
   useEffect(() => {
-    if (categories) {
-      setCustomList(categories);
-      return;
-    }
+    if (categories) return;
     const updateHandler = () => {
       setCustomList(getCustomCategories());
     };
@@ -141,7 +138,8 @@ export function CategoryProvider({
     return () => window.removeEventListener(EVENT_KEY, updateHandler);
   }, [categories]);
 
-  const value = useMemo(() => buildTree(customList), [customList]);
+  const activeCategories = categories ?? customList;
+  const value = useMemo(() => buildTree(activeCategories), [activeCategories]);
   return <CategoryContext.Provider value={value}>{children}</CategoryContext.Provider>;
 }
 

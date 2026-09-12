@@ -29,6 +29,7 @@ import { PRESET_BANNER_ASSETS, type PresetBannerAsset } from "@/data/banner-asse
 import { type Category } from "@/data/catalog";
 import { WHATSAPP } from "@/data/products";
 import { toast } from "sonner";
+import { ImageUploadInput } from "@/components/admin/ImageUploadInput";
 
 export const Route = createFileRoute("/admin/banners")({
   component: AdminBannersPage,
@@ -171,7 +172,7 @@ function AdminBannersPage() {
             <span className="text-xs font-black uppercase tracking-widest text-[#00a884]">
               Visual Merchandising
             </span>
-            <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
+            <span className="text-xs font-bold text-amber-600">
               {allBanners.length} Banners Configured
             </span>
           </div>
@@ -315,20 +316,14 @@ function AdminBannersPage() {
               className="group relative flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xs transition hover:shadow-lg"
             >
               {/* Card Header & Taxonomy Tags */}
-              <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/60 px-5 py-3">
+              <div className="flex items-center justify-between border-b border-slate-100 bg-white px-5 py-3">
                 <div className="flex items-center gap-2">
-                  <span
-                    className={`rounded-md px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${
-                      banner.type === "root_category"
-                        ? "bg-emerald-100 text-emerald-900"
-                        : "bg-sky-100 text-sky-900"
-                    }`}
-                  >
+                  <span className="text-[11px] font-extrabold uppercase tracking-wider text-amber-600">
                     {banner.type === "root_category"
                       ? "Primary Department"
                       : `Subcategory: ${banner.parentName || "Catalog"}`}
                   </span>
-                  <span className="font-mono text-xs font-bold text-slate-500">#{banner.id}</span>
+                  <span className="font-mono text-xs font-bold text-slate-400">#{banner.id}</span>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -594,15 +589,13 @@ function BannerEditorModal({
               />
             </div>
 
-            {/* Banner Image URL */}
-            <div className="sm:col-span-2 space-y-1">
-              <label className="text-xs font-bold text-slate-700">Banner Image URL</label>
-              <input
-                type="text"
+            {/* Banner Image URL with Upload Button */}
+            <div className="sm:col-span-2">
+              <ImageUploadInput
+                label="Banner Image URL"
                 value={form.image}
-                onChange={(e) => setForm({ ...form, image: e.target.value })}
+                onChange={(url) => setForm({ ...form, image: url })}
                 placeholder="https://... or select from preset gallery below"
-                className="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-xs font-mono text-slate-800 focus:border-[#00a884] focus:outline-none"
               />
             </div>
           </div>

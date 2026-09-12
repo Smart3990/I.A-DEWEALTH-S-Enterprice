@@ -63,18 +63,17 @@ const INITIAL_INQUIRIES: CustomerInquiry[] = [
 ];
 
 export function getInquiries(): CustomerInquiry[] {
-  if (typeof window === "undefined") return INITIAL_INQUIRIES;
+  if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_INQUIRIES));
-      return INITIAL_INQUIRIES;
+      return [];
     }
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_INQUIRIES;
+    return Array.isArray(parsed) ? parsed : [];
   } catch (e) {
     console.error("Failed to read inquiries from localStorage", e);
-    return INITIAL_INQUIRIES;
+    return [];
   }
 }
 
@@ -92,13 +91,9 @@ export async function fetchInquiriesFromServer(): Promise<CustomerInquiry[]> {
       // Merge: server inquiries take precedence. Any local inquiry with temporary id (like inq-123)
       // that isn't yet in server list is preserved at the top.
       const serverIds = new Set(serverInquiries.map((i) => i.id));
-      const localOnly = currentLocal.filter(
-        (i) => !serverIds.has(i.id) && !INITIAL_INQUIRIES.some((init) => init.id === i.id),
-      );
+      const localOnly = currentLocal.filter((i) => !serverIds.has(i.id));
 
-      // If there are server inquiries, combine real ones + local pending + fallback samples only if empty
-      const combined = [...localOnly, ...serverInquiries];
-      const finalInquiries = combined.length > 0 ? combined : INITIAL_INQUIRIES;
+      const finalInquiries = [...localOnly, ...serverInquiries];
 
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(finalInquiries));
@@ -207,9 +202,7 @@ export function addInquiry(
     .then((res) => res.json())
     .then((resData) => {
       if (resData?.inquiry) {
-        const replaceUpdated = getInquiries().map((i) =>
-          i.id === tempId ? resData.inquiry : i
-        );
+        const replaceUpdated = getInquiries().map((i) => (i.id === tempId ? resData.inquiry : i));
         saveInquiries(replaceUpdated);
       }
     })

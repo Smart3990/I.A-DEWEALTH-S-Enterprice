@@ -8,8 +8,9 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-dist
-dist-ssr
+# dist allowed for GitHub upload and Netlify hosting
+# dist
+# dist-ssr
 .output
 .vinxi
 .tanstack/**
@@ -19,6 +20,9 @@ dist-ssr
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars
+
+# Netlify
+.netlify/
 
 # Editor directories and files
 .vscode/*

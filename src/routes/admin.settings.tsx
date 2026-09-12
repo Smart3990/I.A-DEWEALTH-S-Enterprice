@@ -6,6 +6,7 @@ import { Btn, FieldInput, PageHead, Panel, type Field } from "@/components/admin
 import { SuperAdminOnly } from "@/components/admin/guard";
 import { logActivity } from "@/lib/admin-auth";
 import { getSiteConfig, saveSiteConfig, type SiteConfig } from "@/data/site";
+import { defaultSettings } from "@/data/storefront";
 import {
   MapPin,
   Navigation,
@@ -86,7 +87,7 @@ const groups: { id: string; title: string; fields: Field[] }[] = [
 function SettingsAdmin() {
   const qc = useQueryClient();
   /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-  const [form, setForm] = useState<any>(null);
+  const [form, setForm] = useState<any>(() => ({ ...defaultSettings, id: "default" }));
   const [saved, setSaved] = useState(false);
   const [activeTab, setActiveTab] = useState<"all" | "delivery" | "store" | "whatsapp" | "contact">(
     "all",
@@ -109,10 +110,10 @@ function SettingsAdmin() {
   });
 
   useEffect(() => {
-    if (data && !form) {
-      setForm(data);
+    if (data) {
+      setForm((prev) => ({ ...prev, ...data }));
     }
-  }, [data, form]);
+  }, [data]);
 
   // Live preview map calculation
   const currentMapEmbed =
@@ -151,8 +152,6 @@ function SettingsAdmin() {
       setTimeout(() => setSaved(false), 3000);
     },
   });
-
-  if (!form) return <p className="text-sm text-muted-foreground p-6">Loading store settings…</p>;
 
   return (
     <div className="space-y-6">

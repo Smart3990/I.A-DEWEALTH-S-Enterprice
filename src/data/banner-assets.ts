@@ -58,15 +58,50 @@ export interface PresetBannerAsset {
 export const PRESET_BANNER_ASSETS: PresetBannerAsset[] = [
   // Department Heroes
   { id: "b_phones", name: "Phones & Tablets Hero", category: "Department Hero", url: bannerPhones },
-  { id: "b_kitchen", name: "Kitchen Appliances Hero", category: "Department Hero", url: bannerKitchen },
-  { id: "b_gadgets", name: "Gadgets & Electronics Hero", category: "Department Hero", url: bannerGadgets },
+  {
+    id: "b_kitchen",
+    name: "Kitchen Appliances Hero",
+    category: "Department Hero",
+    url: bannerKitchen,
+  },
+  {
+    id: "b_gadgets",
+    name: "Gadgets & Electronics Hero",
+    category: "Department Hero",
+    url: bannerGadgets,
+  },
   { id: "b_cars", name: "Cars & Vehicles Hero", category: "Department Hero", url: bannerCars },
   { id: "b_cars_hero", name: "Cars Modern Showroom", category: "Department Hero", url: carsHero },
-  { id: "b_computers", name: "Computers & Laptops Hero", category: "Department Hero", url: bannerComputers },
-  { id: "b_accessories", name: "Accessories Hero", category: "Department Hero", url: bannerAccessories },
-  { id: "b_travel", name: "Travel Accessories Hero", category: "Department Hero", url: bannerTravelAcc },
-  { id: "b_lifestyle", name: "Lifestyle Accessories Hero", category: "Department Hero", url: bannerLifestyleAcc },
-  { id: "b_other", name: "Other Accessories Hero", category: "Department Hero", url: bannerOtherAcc },
+  {
+    id: "b_computers",
+    name: "Computers & Laptops Hero",
+    category: "Department Hero",
+    url: bannerComputers,
+  },
+  {
+    id: "b_accessories",
+    name: "Accessories Hero",
+    category: "Department Hero",
+    url: bannerAccessories,
+  },
+  {
+    id: "b_travel",
+    name: "Travel Accessories Hero",
+    category: "Department Hero",
+    url: bannerTravelAcc,
+  },
+  {
+    id: "b_lifestyle",
+    name: "Lifestyle Accessories Hero",
+    category: "Department Hero",
+    url: bannerLifestyleAcc,
+  },
+  {
+    id: "b_other",
+    name: "Other Accessories Hero",
+    category: "Department Hero",
+    url: bannerOtherAcc,
+  },
 
   // Gadgets & Tech
   { id: "g_phone", name: "Flagship Smartphone", category: "Gadgets & Tech", url: phone },
@@ -78,23 +113,63 @@ export const PRESET_BANNER_ASSETS: PresetBannerAsset[] = [
   { id: "g_gan140", name: "GaN 140W Desktop Station", category: "Gadgets & Tech", url: gan140 },
   { id: "g_powerbank", name: "27000mAh Power Bank", category: "Gadgets & Tech", url: powerbank },
   { id: "g_magsafe", name: "MagSafe Wireless Stand", category: "Gadgets & Tech", url: magsafe },
-  { id: "g_earbuds_anc", name: "True Wireless ANC Earbuds", category: "Gadgets & Tech", url: earbudsAnc },
-  { id: "g_earbuds_neo", name: "Clear Sound Neo Earbuds", category: "Gadgets & Tech", url: earbudsNeo },
-  { id: "g_headphones", name: "Studio Over-Ear Headphones", category: "Gadgets & Tech", url: headphones },
-  { id: "g_speaker", name: "Waterproof Bluetooth Speaker", category: "Gadgets & Tech", url: speaker },
+  {
+    id: "g_earbuds_anc",
+    name: "True Wireless ANC Earbuds",
+    category: "Gadgets & Tech",
+    url: earbudsAnc,
+  },
+  {
+    id: "g_earbuds_neo",
+    name: "Clear Sound Neo Earbuds",
+    category: "Gadgets & Tech",
+    url: earbudsNeo,
+  },
+  {
+    id: "g_headphones",
+    name: "Studio Over-Ear Headphones",
+    category: "Gadgets & Tech",
+    url: headphones,
+  },
+  {
+    id: "g_speaker",
+    name: "Waterproof Bluetooth Speaker",
+    category: "Gadgets & Tech",
+    url: speaker,
+  },
   { id: "g_soundbar", name: "Home Theater Soundbar", category: "Gadgets & Tech", url: soundbar },
   { id: "g_watch", name: "Titanium Smartwatch", category: "Gadgets & Tech", url: watch },
   { id: "g_tracker", name: "Fitness Activity Tracker", category: "Gadgets & Tech", url: tracker },
-  { id: "g_smarthome", name: "Smart Home Hub & Sensors", category: "Gadgets & Tech", url: smarthome },
+  {
+    id: "g_smarthome",
+    name: "Smart Home Hub & Sensors",
+    category: "Gadgets & Tech",
+    url: smarthome,
+  },
   { id: "g_camera", name: "Security & Action Camera", category: "Gadgets & Tech", url: camera },
   { id: "g_cable", name: "Kevlar Braided Fast Cable", category: "Gadgets & Tech", url: cable },
   { id: "g_hub", name: "Multi-Port USB-C Hub", category: "Gadgets & Tech", url: hub },
 
   // Kitchen & Home
-  { id: "k_airfryer", name: "Digital Dual-Basket Air Fryer", category: "Kitchen & Home", url: airFryer },
-  { id: "k_blender", name: "Commercial High-Power Blender", category: "Kitchen & Home", url: blender },
+  {
+    id: "k_airfryer",
+    name: "Digital Dual-Basket Air Fryer",
+    category: "Kitchen & Home",
+    url: airFryer,
+  },
+  {
+    id: "k_blender",
+    name: "Commercial High-Power Blender",
+    category: "Kitchen & Home",
+    url: blender,
+  },
   { id: "k_espresso", name: "Barista Espresso Machine", category: "Kitchen & Home", url: espresso },
-  { id: "k_microwave", name: "Digital Smart Microwave", category: "Kitchen & Home", url: microwave },
+  {
+    id: "k_microwave",
+    name: "Digital Smart Microwave",
+    category: "Kitchen & Home",
+    url: microwave,
+  },
   { id: "k_kettle", name: "Electric Rapid Kettle", category: "Kitchen & Home", url: kettle },
   { id: "k_cooker", name: "Electric Pressure Cooker", category: "Kitchen & Home", url: cooker },
 
@@ -106,6 +181,16 @@ export const PRESET_BANNER_ASSETS: PresetBannerAsset[] = [
   { id: "v_mount", name: "Fast Magnetic Car Mount", category: "Vehicles", url: carMount },
 
   // Accessories
-  { id: "a_backpack", name: "Water-Resistant Tech Backpack", category: "Accessories", url: backpack },
-  { id: "a_laptop_stand", name: "Ergonomic Aluminum Laptop Stand", category: "Accessories", url: laptopStand },
+  {
+    id: "a_backpack",
+    name: "Water-Resistant Tech Backpack",
+    category: "Accessories",
+    url: backpack,
+  },
+  {
+    id: "a_laptop_stand",
+    name: "Ergonomic Aluminum Laptop Stand",
+    category: "Accessories",
+    url: laptopStand,
+  },
 ];

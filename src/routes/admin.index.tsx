@@ -22,6 +22,7 @@ import {
   ChevronRight,
   Boxes,
   HelpCircle,
+  Star,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -42,6 +43,7 @@ import { getSiteConfig } from "@/data/site";
 import { getAllProducts } from "@/data/products-store";
 import { categories, type Category } from "@/data/catalog";
 import { getInquiries, fetchInquiriesFromServer } from "@/data/inquiries-store";
+import { getPendingReviews } from "@/data/reviews-store";
 import { useStoreAnalytics, type DurationFilter } from "@/data/analytics-store";
 import { toast } from "sonner";
 
@@ -67,30 +69,54 @@ export function AdminDashboard() {
   const [site, setSite] = useState(getSiteConfig());
   const [products, setProducts] = useState(getAllProducts());
   const [inquiries, setInquiries] = useState(getInquiries());
+  const [pendingReviewsCount, setPendingReviewsCount] = useState(() => getPendingReviews().length);
   const [subcatParentFilter, setSubcatParentFilter] = useState<string>("all");
   const [activeWorkstreamHint, setActiveWorkstreamHint] = useState<string | null>(null);
 
-  const reloadData = () => {
+  useEffect(() => {
+    let isMounted = true;
     setSite(getSiteConfig());
     setProducts(getAllProducts());
     setInquiries(getInquiries());
-    fetchInquiriesFromServer()
-      .then((fresh) => setInquiries(fresh))
-      .catch(() => {});
-  };
+    setPendingReviewsCount(getPendingReviews().length);
 
-  useEffect(() => {
-    reloadData();
-    const handleStorage = () => reloadData();
+    fetchInquiriesFromServer()
+      .then((fresh) => {
+        if (isMounted) setInquiries(fresh);
+      })
+      .catch(() => {});
+
+    // Poll every 10 seconds for real-time customer submissions
+    const pollInterval = setInterval(() => {
+      fetchInquiriesFromServer()
+        .then((fresh) => {
+          if (isMounted) setInquiries(fresh);
+        })
+        .catch(() => {});
+    }, 10000);
+
+    const handleStorage = () => {
+      if (!isMounted) return;
+      setSite(getSiteConfig());
+      setProducts(getAllProducts());
+      setInquiries(getInquiries());
+      setPendingReviewsCount(getPendingReviews().length);
+    };
+
     window.addEventListener("ia_products_updated", handleStorage);
     window.addEventListener("ia_inquiries_updated", handleStorage);
     window.addEventListener("ia_site_config_updated", handleStorage);
     window.addEventListener("ia_categories_updated", handleStorage);
+    window.addEventListener("ia_reviews_updated", handleStorage);
+
     return () => {
+      isMounted = false;
+      clearInterval(pollInterval);
       window.removeEventListener("ia_products_updated", handleStorage);
       window.removeEventListener("ia_inquiries_updated", handleStorage);
       window.removeEventListener("ia_site_config_updated", handleStorage);
       window.removeEventListener("ia_categories_updated", handleStorage);
+      window.removeEventListener("ia_reviews_updated", handleStorage);
     };
   }, []);
 
@@ -649,224 +675,218 @@ export function AdminDashboard() {
           </span>
         </div>
 
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {/* Card 1: Banners & Visual Merchandising */}
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          {/* Card 1: Banners & Visual Merchandising (Sky/Blue) */}
           <Link
             to="/admin/banners"
-            className="group relative flex flex-col justify-between rounded-xl bg-slate-50/70 p-4 transition hover:bg-slate-100/90 hover:shadow-xs border-0"
+            className="group relative flex flex-col justify-between rounded-xl border border-sky-200/80 bg-sky-50/50 p-4 transition hover:bg-sky-50 hover:border-sky-300 hover:shadow-sm"
           >
             <div>
-              <div className="flex items-center justify-between">
-                <div className="rounded-lg bg-slate-200/80 p-2 text-slate-700 transition group-hover:bg-slate-300/80">
-                  <ImageIcon className="h-5 w-5" />
-                </div>
-                <ArrowUpRight className="h-4 w-4 text-slate-400 group-hover:text-slate-700 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition" />
+              <div className="flex items-center justify-end">
+                <ArrowUpRight className="h-4 w-4 text-sky-400 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-sky-600" />
               </div>
-              <h3 className="mt-3 text-sm font-bold text-slate-900 group-hover:text-slate-800 transition">
+              <h3 className="mt-1 text-sm font-bold text-sky-950 transition group-hover:text-sky-700">
                 Banners & Images
               </h3>
-              <p className="mt-1 text-xs text-slate-500 leading-relaxed">
+              <p className="mt-1 text-xs text-slate-600 leading-relaxed">
                 Edit homepage hero banners and visual banners for{" "}
                 <strong>all 48 categories & subcategories</strong> with live storefront preview.
               </p>
             </div>
-            <div className="mt-4 flex items-center gap-1.5 text-[11px] font-bold text-slate-700 group-hover:text-slate-900">
+            <div className="mt-4 flex items-center gap-1.5 text-[11px] font-bold text-sky-700 group-hover:text-sky-900">
               <span>Edit Banners</span>
               <ChevronRight className="h-3 w-3" />
             </div>
           </Link>
 
-          {/* Card 2: Products Catalog & Categorisation */}
+          {/* Card 2: Products Catalog & Categorisation (Emerald/Green) */}
           <Link
             to="/admin/products"
-            className="group relative flex flex-col justify-between rounded-xl bg-slate-50/70 p-4 transition hover:bg-slate-100/90 hover:shadow-xs border-0"
+            className="group relative flex flex-col justify-between rounded-xl border border-emerald-200/80 bg-emerald-50/50 p-4 transition hover:bg-emerald-50 hover:border-emerald-300 hover:shadow-sm"
           >
             <div>
-              <div className="flex items-center justify-between">
-                <div className="rounded-lg bg-slate-200/80 p-2 text-slate-700 transition group-hover:bg-slate-300/80">
-                  <Package className="h-5 w-5" />
-                </div>
-                <ArrowUpRight className="h-4 w-4 text-slate-400 group-hover:text-slate-700 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition" />
+              <div className="flex items-center justify-end">
+                <ArrowUpRight className="h-4 w-4 text-emerald-400 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-emerald-600" />
               </div>
-              <h3 className="mt-3 text-sm font-bold text-slate-900 group-hover:text-slate-800 transition">
+              <h3 className="mt-1 text-sm font-bold text-emerald-950 transition group-hover:text-emerald-700">
                 Products & Categories
               </h3>
-              <p className="mt-1 text-xs text-slate-500 leading-relaxed">
+              <p className="mt-1 text-xs text-slate-600 leading-relaxed">
                 Organise and re-categorise products by department and subcategory, adjust inventory
                 stock, and set promotional flags.
               </p>
             </div>
-            <div className="mt-4 flex items-center gap-1.5 text-[11px] font-bold text-slate-700 group-hover:text-slate-900">
+            <div className="mt-4 flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 group-hover:text-emerald-900">
               <span>Manage Products ({products.length})</span>
               <ChevronRight className="h-3 w-3" />
             </div>
           </Link>
 
-          {/* Card 3: Categories & Hierarchy */}
+          {/* Card 3: Categories & Hierarchy (Purple/Violet) */}
           <Link
             to="/admin/categories"
-            className="group relative flex flex-col justify-between rounded-xl bg-slate-50/70 p-4 transition hover:bg-slate-100/90 hover:shadow-xs border-0"
+            className="group relative flex flex-col justify-between rounded-xl border border-purple-200/80 bg-purple-50/50 p-4 transition hover:bg-purple-50 hover:border-purple-300 hover:shadow-sm"
           >
             <div>
-              <div className="flex items-center justify-between">
-                <div className="rounded-lg bg-slate-200/80 p-2 text-slate-700 transition group-hover:bg-slate-300/80">
-                  <FolderTree className="h-5 w-5" />
-                </div>
-                <ArrowUpRight className="h-4 w-4 text-slate-400 group-hover:text-slate-700 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition" />
+              <div className="flex items-center justify-end">
+                <ArrowUpRight className="h-4 w-4 text-purple-400 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-purple-600" />
               </div>
-              <h3 className="mt-3 text-sm font-bold text-slate-900 group-hover:text-slate-800 transition">
+              <h3 className="mt-1 text-sm font-bold text-purple-950 transition group-hover:text-purple-700">
                 Categories & Taxonomy
               </h3>
-              <p className="mt-1 text-xs text-slate-500 leading-relaxed">
+              <p className="mt-1 text-xs text-slate-600 leading-relaxed">
                 Configure primary departments, slugs, sort order, and parent-child taxonomy tree
                 relationships.
               </p>
             </div>
-            <div className="mt-4 flex items-center gap-1.5 text-[11px] font-bold text-slate-700 group-hover:text-slate-900">
+            <div className="mt-4 flex items-center gap-1.5 text-[11px] font-bold text-purple-700 group-hover:text-purple-900">
               <span>View Taxonomy</span>
               <ChevronRight className="h-3 w-3" />
             </div>
           </Link>
 
-          {/* Card 4: Customer Inquiries */}
+          {/* Card 4: Customer Inquiries (Amber/Orange) */}
           <Link
             to="/admin/inquiries"
-            className="group relative flex flex-col justify-between rounded-xl bg-slate-50/70 p-4 transition hover:bg-slate-100/90 hover:shadow-xs border-0"
+            className="group relative flex flex-col justify-between rounded-xl border border-amber-200/80 bg-amber-50/50 p-4 transition hover:bg-amber-50 hover:border-amber-300 hover:shadow-sm"
           >
             <div>
-              <div className="flex items-center justify-between">
-                <div className="rounded-lg bg-slate-200/80 p-2 text-slate-700 transition group-hover:bg-slate-300/80">
-                  <MessageSquare className="h-5 w-5" />
-                </div>
-                <ArrowUpRight className="h-4 w-4 text-slate-400 group-hover:text-slate-700 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition" />
+              <div className="flex items-center justify-end">
+                <ArrowUpRight className="h-4 w-4 text-amber-400 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-amber-600" />
               </div>
-              <h3 className="mt-3 text-sm font-bold text-slate-900 group-hover:text-slate-800 transition">
+              <h3 className="mt-1 text-sm font-bold text-amber-950 transition group-hover:text-amber-700">
                 Customer Inquiries
               </h3>
-              <p className="mt-1 text-xs text-slate-500 leading-relaxed">
+              <p className="mt-1 text-xs text-slate-600 leading-relaxed">
                 Review WhatsApp order queries and product questions sent directly by customers
                 browsing the shop.
               </p>
             </div>
-            <div className="mt-4 flex items-center gap-1.5 text-[11px] font-bold text-slate-700 group-hover:text-slate-900">
+            <div className="mt-4 flex items-center gap-1.5 text-[11px] font-bold text-amber-700 group-hover:text-amber-900">
               <span>View Inquiries ({inquiries.length})</span>
               <ChevronRight className="h-3 w-3" />
             </div>
           </Link>
-        </div>
-      </div>
 
-      {/* 5. Popular Pages, Products & Ghanaian Regional Traffic Breakdown */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        {/* Top Visited Products */}
-        <div className="rounded-2xl bg-white p-6 shadow-xs border-0 lg:col-span-7">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          {/* Card 5: Customer Reviews & Moderation (Rose/Pink) */}
+          <Link
+            to="/admin/reviews"
+            className="group relative flex flex-col justify-between rounded-xl border border-rose-200/80 bg-rose-50/50 p-4 transition hover:bg-rose-50 hover:border-rose-300 hover:shadow-sm"
+          >
             <div>
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                CUSTOMER INTEREST
-              </span>
-              <h3 className="text-base font-bold text-slate-900">
-                Top Visited Products ({durationLabels[duration]})
+              <div className="flex items-center justify-end">
+                <ArrowUpRight className="h-4 w-4 text-rose-400 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-rose-600" />
+              </div>
+              <div className="mt-1 flex items-center gap-2">
+                <h3 className="text-sm font-bold text-rose-950 transition group-hover:text-rose-700">
+                  Reviews & Ratings
+                </h3>
+                {pendingReviewsCount > 0 && (
+                  <span className="rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-bold text-white">
+                    {pendingReviewsCount} pending
+                  </span>
+                )}
+              </div>
+              <p className="mt-1 text-xs text-slate-600 leading-relaxed">
+                Approve or moderate customer ratings before they appear on the homepage.
+              </p>
+            </div>
+            <div className="mt-4 flex items-center gap-1.5 text-[11px] font-bold text-rose-700 group-hover:text-rose-900">
+              <span>Moderate ({pendingReviewsCount} pending)</span>
+              <ChevronRight className="h-3 w-3" />
+            </div>
+          </Link>
+        </div>
+
+        {/* Real-time Customer Inquiries Feed on Dashboard */}
+        <div className="mt-8 border-t border-slate-100 pt-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-[#00a884]" />
+              <h3 className="text-sm font-bold text-slate-900">
+                Customer Inquiries & Messages ({inquiries.length})
               </h3>
             </div>
             <Link
-              to="/admin/products"
+              to="/admin/inquiries"
               className="text-xs font-bold text-[#00a884] hover:underline flex items-center gap-1"
             >
-              <span>All Products</span>
-              <ChevronRight className="h-3 w-3" />
+              <span>Manage All Inquiries</span>
+              <ChevronRight className="h-3.5 w-3.5" />
             </Link>
           </div>
 
-          <div className="mt-4 divide-y divide-slate-100">
-            {analytics.topProducts.map((p, idx) => (
-              <div key={p.id} className="flex items-center justify-between py-3">
-                <div className="flex items-center gap-3">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-black text-slate-700">
-                    {idx + 1}
-                  </span>
-                  <div>
-                    <h4 className="text-xs font-bold text-slate-900 line-clamp-1">{p.name}</h4>
-                    <span className="text-[11px] text-slate-500">{p.category}</span>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <span className="font-mono text-xs font-black text-slate-900">
-                    {p.visits.toLocaleString()} views
-                  </span>
-                  <div className="h-1.5 w-16 overflow-hidden rounded-full bg-slate-100 mt-1">
-                    <div
-                      className="h-full bg-[#00a884] rounded-full"
-                      style={{ width: `${p.percentage * 3}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Regional & Referral Traffic in Ghana */}
-        <div className="rounded-2xl bg-white p-6 shadow-xs border-0 lg:col-span-5 space-y-6">
-          {/* Ghana Regions Breakdown */}
-          <div>
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <MapPin className="h-4 w-4 text-slate-600" />
-                <h3 className="text-sm font-bold text-slate-900">Visitor Locations in Ghana</h3>
-              </div>
-              <span className="text-[11px] font-bold text-slate-500">By Region</span>
+          {inquiries.length === 0 ? (
+            <div className="mt-4 rounded-xl bg-slate-50/70 p-6 text-center text-xs text-slate-500">
+              No customer inquiries submitted yet. Messages sent via the Contact page or Delivery
+              form will appear here in real time.
             </div>
+          ) : (
+            <div className="mt-3 space-y-2">
+              {inquiries.slice(0, 4).map((inq) => {
+                const isNew = inq.status === "new";
+                const isInProgress = inq.status === "in-progress" || inq.status === "in_progress";
+                const isResponded =
+                  inq.status === "responded" ||
+                  inq.status === "resolved" ||
+                  inq.status === "closed";
 
-            <div className="mt-3 space-y-2.5">
-              {analytics.regions.map((reg) => (
-                <div key={reg.name} className="space-y-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-medium text-slate-700 truncate max-w-[200px]">
-                      {reg.name}
-                    </span>
-                    <span className="font-bold text-slate-900">
-                      {reg.percentage}% ({reg.visits.toLocaleString()})
-                    </span>
+                return (
+                  <div
+                    key={inq.id}
+                    className={`flex flex-col gap-2 rounded-xl border p-3.5 sm:flex-row sm:items-center sm:justify-between text-xs transition ${
+                      isNew
+                        ? "border-emerald-200 bg-emerald-50/40"
+                        : isInProgress
+                          ? "border-amber-200 bg-amber-50/40"
+                          : "border-blue-100 bg-slate-50/70"
+                    }`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-slate-900">{inq.name}</span>
+                        <span className="text-[11px] text-slate-500">
+                          ({inq.phone || inq.email || "Contact"})
+                        </span>
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide border ${
+                            isNew
+                              ? "bg-emerald-500 text-white border-emerald-600 shadow-2xs"
+                              : isInProgress
+                                ? "bg-amber-500 text-white border-amber-600 shadow-2xs"
+                                : "bg-blue-600 text-white border-blue-700 shadow-2xs"
+                          }`}
+                        >
+                          <span
+                            className={`h-1.5 w-1.5 rounded-full ${
+                              isNew
+                                ? "bg-white animate-pulse"
+                                : isInProgress
+                                  ? "bg-amber-100"
+                                  : "bg-blue-200"
+                            }`}
+                          />
+                          {isNew ? "New Message" : isInProgress ? "In Progress" : "Responded"}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 font-semibold text-slate-800 truncate">{inq.subject}</p>
+                      <p className="text-slate-500 line-clamp-1">{inq.message}</p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <span className="text-[11px] font-medium text-slate-400">
+                        {new Date(inq.createdAt).toLocaleDateString("en-GB", {
+                          day: "numeric",
+                          month: "short",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </div>
                   </div>
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-                    <div
-                      className="h-full bg-[#00a884] rounded-full"
-                      style={{ width: `${reg.percentage}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
-          </div>
-
-          {/* Traffic Channels */}
-          <div className="border-t border-slate-100 pt-5">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <Globe className="h-4 w-4 text-slate-600" />
-                <h3 className="text-sm font-bold text-slate-900">Inflow Channels</h3>
-              </div>
-              <span className="text-[11px] font-bold text-slate-500">Channel Split</span>
-            </div>
-
-            <div className="mt-3 space-y-2.5">
-              {analytics.trafficSources.map((ch) => (
-                <div key={ch.source} className="space-y-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-medium text-slate-700">{ch.source}</span>
-                    <span className="font-bold text-slate-900">{ch.percentage}%</span>
-                  </div>
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-                    <div
-                      className="h-full bg-sky-500 rounded-full"
-                      style={{ width: `${ch.percentage}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

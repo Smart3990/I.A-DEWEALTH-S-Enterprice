@@ -1,4 +1,12 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 
 export type CartLine = { id: string; name: string; price: number; qty: number; image?: string };
 
@@ -36,14 +44,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartLine[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
+  const isHydrated = useRef(false);
 
   // Hydrate from storage after mount so SSR markup matches.
   useEffect(() => {
     setCart(read<CartLine[]>(CART_KEY, []));
     setFavorites(read<string[]>(FAV_KEY, []));
+    isHydrated.current = true;
   }, []);
 
   useEffect(() => {
+    if (!isHydrated.current) return;
     try {
       window.localStorage.setItem(CART_KEY, JSON.stringify(cart));
     } catch {
@@ -52,6 +63,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [cart]);
 
   useEffect(() => {
+    if (!isHydrated.current) return;
     try {
       window.localStorage.setItem(FAV_KEY, JSON.stringify(favorites));
     } catch {

@@ -139,6 +139,28 @@ function DeliveryPage() {
           message: message.trim(),
         });
       }
+
+      // Also log to inquiries table for extra reliability
+      try {
+        await supabase.from("inquiries").insert({
+          item_count: 1,
+          items: [
+            {
+              type: "customer_message",
+              name: fullName.trim(),
+              phone: phoneNumber.trim(),
+              email: email.trim(),
+              subject: subject.trim(),
+              message: message.trim(),
+            },
+          ],
+          note: `Customer Message:\nFrom: ${fullName.trim()} (${phoneNumber.trim() || email.trim()})\nSubject: ${subject.trim()}\nMessage: ${message.trim()}`,
+          status: "new",
+          total: 0,
+        });
+      } catch {
+        // silent
+      }
     } catch (err) {
       console.warn("Notice: Saved to local store; remote sync status:", err);
       addInquiry({
@@ -184,13 +206,13 @@ function DeliveryPage() {
         <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {/* Card 1: Visit Us */}
           <div className="flex flex-col items-center rounded-2xl border border-slate-200/80 bg-white p-6 text-center shadow-xs transition hover:shadow-md">
-            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700">
-              <MapPin className="h-5 w-5" />
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+              <MapPin className="h-5 w-5 text-emerald-600" />
             </div>
             <h3 className="text-sm font-bold text-slate-900">Visit Us</h3>
             <p className="mt-1 text-xs font-semibold text-slate-900">{visitUsHub}</p>
             <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">{addressDisplay}</p>
-            <span className="mt-1.5 inline-block rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700">
+            <span className="mt-1.5 inline-block text-[11px] font-bold text-emerald-600">
               {pickupStatus}
             </span>
           </div>
@@ -243,7 +265,7 @@ function DeliveryPage() {
             <p className="mt-1 text-xs text-slate-700 font-medium leading-relaxed">
               {workingHours}
             </p>
-            <span className="mt-1 text-[11px] text-slate-500 font-medium">
+            <span className="mt-1 text-[11px] font-bold text-emerald-600">
               WhatsApp Assistance 24/7
             </span>
           </div>
