@@ -1,0 +1,10 @@
+{
+  "name": "I.A-DEWEALTH-S-Enterprice",
+  "description": "Imported from GitHub: Smart3990/I.A-DEWEALTH-S-Enterprice",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
