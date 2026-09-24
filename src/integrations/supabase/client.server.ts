@@ -94,14 +94,11 @@ function createMockSupabaseAdminClient() {
 }
 
 const DEFAULT_SUPABASE_URL = "https://olhxisnuqdqelkaxvroi.supabase.co";
-const DEFAULT_SUPABASE_SERVICE_ROLE_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9saHhpc251cWRxZWxrYXh2cm9pIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4ODk3MDcwNiwiZXhwIjoyMTA0NTQ2NzA2fQ.JdUyA7eUnXg_Rzt_SyjyVM3t1H7MFHYC8gYwqEvGnGs";
 
 function createSupabaseAdminClient() {
   const SUPABASE_URL =
     process.env["SUPABASE_URL"] || process.env["VITE_SUPABASE_URL"] || DEFAULT_SUPABASE_URL;
-  const SUPABASE_SERVICE_ROLE_KEY =
-    process.env["SUPABASE_SERVICE_ROLE_KEY"] || DEFAULT_SUPABASE_SERVICE_ROLE_KEY;
+  const SUPABASE_SERVICE_ROLE_KEY = process.env["SUPABASE_SERVICE_ROLE_KEY"];
 
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     console.warn("[Supabase Admin] Missing Supabase environment variable(s). Mock client active.");

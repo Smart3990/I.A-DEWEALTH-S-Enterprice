@@ -5,6 +5,8 @@
 [build.environment]
   NITRO_PRESET = "netlify"
   NODE_VERSION = "20"
+  # The Supabase project ID is a public identifier embedded in the browser API URL.
+  SECRETS_SCAN_OMIT_KEYS = "SUPABASE_PROJECT_ID"
 
 [functions]
   directory = ".netlify/functions-internal"
