@@ -76,7 +76,11 @@ export function SuperDeals() {
   }, [products, section?.itemLimit]);
 
   // The promo is over: hide the section on every device until the admin starts a new one.
-  if (!deals.length || secondsLeft === 0) return null;
+  // Checked during render too, so the server HTML already leaves it out (an ended promo
+  // stays ended, so server and browser agree).
+  const endTime = settings.superdealsEndsAt ? Date.parse(settings.superdealsEndsAt) : NaN;
+  const promoEnded = secondsLeft === 0 || (!Number.isNaN(endTime) && endTime <= Date.now());
+  if (!deals.length || promoEnded) return null;
 
   return (
     <section
