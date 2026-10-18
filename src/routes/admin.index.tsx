@@ -25,6 +25,7 @@ import {
   Star,
   Flame,
   Save,
+  RotateCcw,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -42,7 +43,7 @@ import {
   Area,
 } from "recharts";
 import { getSiteConfig, useSite } from "@/data/site";
-import { logActivity } from "@/lib/admin-auth";
+import { logActivity, useAdminSession } from "@/lib/admin-auth";
 import { useQueryClient } from "@tanstack/react-query";
 import { getAllProducts } from "@/data/products-store";
 import { type Category } from "@/data/catalog";
@@ -92,6 +93,7 @@ export function AdminDashboard() {
   // SuperDeals countdown control state, loaded from the server (same on every device)
   const qc = useQueryClient();
   const { settings } = useSite();
+  const { role } = useAdminSession();
   const [sdHours, setSdHours] = useState<number>(settings.superdealsHours ?? 8);
   const [sdMinutes, setSdMinutes] = useState<number>(settings.superdealsMinutes ?? 29);
   const [sdSeconds, setSdSeconds] = useState<number>(settings.superdealsSeconds ?? 33);
@@ -671,6 +673,28 @@ export function AdminDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Backups & Restore (System Admins only; the page itself asks for the password) */}
+      {role === "super_admin" && (
+        <div className="flex flex-col gap-3 rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-emerald-500/10 to-white p-5 shadow-xs sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-base font-black tracking-tight text-slate-900">
+              Backups & Restore
+            </h3>
+            <p className="text-xs text-slate-600">
+              A full backup is saved automatically every week. Preview past versions and restore one
+              if something goes wrong — password protected.
+            </p>
+          </div>
+          <Link
+            to="/admin/backups"
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-[#00a884] px-5 py-2 text-xs font-bold text-white shadow-sm hover:bg-[#009676]"
+          >
+            <RotateCcw className="h-4 w-4" />
+            Restore / Backups
+          </Link>
+        </div>
+      )}
 
       {/* SuperDeals Flash Countdown Control Card */}
       <div className="rounded-2xl bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-white p-5 sm:p-6 border border-amber-200/80 shadow-xs">

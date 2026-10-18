@@ -23,11 +23,13 @@ import {
   CheckCircle2,
   Lock,
   Megaphone,
+  ArchiveRestore,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminSession } from "@/lib/admin-auth";
 import { adminFetch } from "@/lib/admin-fetch";
 import { AdminSetupForm, useAdminSetupStatus } from "@/components/admin/AdminSetup";
+import { ForcePasswordChange } from "@/components/admin/ForcePasswordChange";
 import { getPendingReviews } from "@/data/reviews-store";
 import { canAccessModule, refreshAdminPermissions } from "@/data/permissions-store";
 import brandLogo from "@/assets/ia-dewealth-logo.png";
@@ -123,6 +125,7 @@ const navGroups: NavGroup[] = [
         permissionModule: "settings",
       },
       { to: "/admin/administrators", label: "Administrators", icon: Users, superOnly: true },
+      { to: "/admin/backups", label: "Backups & Restore", icon: ArchiveRestore, superOnly: true },
       {
         to: "/admin/activity",
         label: "Activity Log",
@@ -197,7 +200,7 @@ function AdminNavList({
 }
 
 function AdminLayout() {
-  const { loading, role, email } = useAdminSession();
+  const { loading, role, email, mustChangePassword } = useAdminSession();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -252,6 +255,8 @@ function AdminLayout() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 antialiased bg-[radial-gradient(#cbd5e1_1.25px,transparent_1.25px)] [background-size:20px_20px]">
+      {mustChangePassword && <ForcePasswordChange email={email} onSignOut={signOut} />}
+
       {/* Top Professional Command Header */}
       <header className="sticky top-0 z-40 bg-white shadow-xs border-0">
         <div className="flex w-full items-center justify-between gap-3 px-3.5 py-2.5 sm:px-6 lg:px-8">

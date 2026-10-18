@@ -8,6 +8,8 @@ export type AdminSession = {
   userId: string | null;
   email: string | null;
   role: AdminRole;
+  /** Set when a System Admin created the account or reset its password. */
+  mustChangePassword: boolean;
 };
 
 /** Reads the signed-in staff member and their role. */
@@ -17,6 +19,7 @@ export function useAdminSession(): AdminSession {
     userId: null,
     email: null,
     role: null,
+    mustChangePassword: false,
   });
 
   useEffect(() => {
@@ -28,7 +31,14 @@ export function useAdminSession(): AdminSession {
         if (!alive) return;
         const user = data?.user ?? null;
         if (!user) {
-          if (alive) setState({ loading: false, userId: null, email: null, role: null });
+          if (alive)
+            setState({
+              loading: false,
+              userId: null,
+              email: null,
+              role: null,
+              mustChangePassword: false,
+            });
           return;
         }
         const { data: roles } = await supabase
@@ -42,10 +52,24 @@ export function useAdminSession(): AdminSession {
           : list.includes("admin")
             ? "admin"
             : null;
-        if (alive) setState({ loading: false, userId: user.id, email: user.email ?? null, role });
+        if (alive)
+          setState({
+            loading: false,
+            userId: user.id,
+            email: user.email ?? null,
+            role,
+            mustChangePassword: user.user_metadata?.["must_change_password"] === true,
+          });
       } catch (err) {
         console.warn("Failed to load admin auth session:", err);
-        if (alive) setState({ loading: false, userId: null, email: null, role: null });
+        if (alive)
+          setState({
+            loading: false,
+            userId: null,
+            email: null,
+            role: null,
+            mustChangePassword: false,
+          });
       }
     }
 

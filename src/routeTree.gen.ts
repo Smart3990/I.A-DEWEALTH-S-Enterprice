@@ -24,6 +24,7 @@ import { Route as TopPicksRouteImport } from './routes/top-picks'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminActivityRouteImport } from './routes/admin.activity'
 import { Route as AdminAdministratorsRouteImport } from './routes/admin.administrators'
+import { Route as AdminBackupsRouteImport } from './routes/admin.backups'
 import { Route as AdminBannersRouteImport } from './routes/admin.banners'
 import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
 import { Route as AdminInquiriesRouteImport } from './routes/admin.inquiries'
@@ -41,6 +42,7 @@ import { Route as CarsIndexRouteImport } from './routes/cars.index'
 import { Route as CarsCategoryRouteImport } from './routes/cars.$category'
 import { Route as CategorySplatRouteImport } from './routes/category.$'
 import { Route as ProductIdRouteImport } from './routes/product.$id'
+import { Route as ApiAdminBackupsRouteImport } from './routes/api/admin/backups'
 import { Route as ApiAdminCategoriesRouteImport } from './routes/api/admin/categories'
 import { Route as ApiAdminNewsRouteImport } from './routes/api/admin/news'
 import { Route as ApiAdminPermissionsRouteImport } from './routes/api/admin/permissions'
@@ -124,6 +126,11 @@ const AdminActivityRoute = AdminActivityRouteImport.update({
 const AdminAdministratorsRoute = AdminAdministratorsRouteImport.update({
   id: '/administrators',
   path: '/administrators',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminBackupsRoute = AdminBackupsRouteImport.update({
+  id: '/backups',
+  path: '/backups',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminBannersRoute = AdminBannersRouteImport.update({
@@ -211,6 +218,11 @@ const ProductIdRoute = ProductIdRouteImport.update({
   path: '/product/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminBackupsRoute = ApiAdminBackupsRouteImport.update({
+  id: '/api/admin/backups',
+  path: '/api/admin/backups',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminCategoriesRoute = ApiAdminCategoriesRouteImport.update({
   id: '/api/admin/categories',
   path: '/api/admin/categories',
@@ -272,6 +284,7 @@ export interface FileRoutesByFullPath {
   '/top-picks': typeof TopPicksRoute
   '/admin/activity': typeof AdminActivityRoute
   '/admin/administrators': typeof AdminAdministratorsRoute
+  '/admin/backups': typeof AdminBackupsRoute
   '/admin/banners': typeof AdminBannersRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/inquiries': typeof AdminInquiriesRoute
@@ -290,6 +303,7 @@ export interface FileRoutesByFullPath {
   '/product/$id': typeof ProductIdRoute
   '/admin/': typeof AdminIndexRoute
   '/cars/': typeof CarsIndexRoute
+  '/api/admin/backups': typeof ApiAdminBackupsRoute
   '/api/admin/categories': typeof ApiAdminCategoriesRoute
   '/api/admin/news': typeof ApiAdminNewsRoute
   '/api/admin/permissions': typeof ApiAdminPermissionsRoute
@@ -314,6 +328,7 @@ export interface FileRoutesByTo {
   '/top-picks': typeof TopPicksRoute
   '/admin/activity': typeof AdminActivityRoute
   '/admin/administrators': typeof AdminAdministratorsRoute
+  '/admin/backups': typeof AdminBackupsRoute
   '/admin/banners': typeof AdminBannersRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/inquiries': typeof AdminInquiriesRoute
@@ -332,6 +347,7 @@ export interface FileRoutesByTo {
   '/product/$id': typeof ProductIdRoute
   '/admin': typeof AdminIndexRoute
   '/cars': typeof CarsIndexRoute
+  '/api/admin/backups': typeof ApiAdminBackupsRoute
   '/api/admin/categories': typeof ApiAdminCategoriesRoute
   '/api/admin/news': typeof ApiAdminNewsRoute
   '/api/admin/permissions': typeof ApiAdminPermissionsRoute
@@ -358,6 +374,7 @@ export interface FileRoutesById {
   '/top-picks': typeof TopPicksRoute
   '/admin/activity': typeof AdminActivityRoute
   '/admin/administrators': typeof AdminAdministratorsRoute
+  '/admin/backups': typeof AdminBackupsRoute
   '/admin/banners': typeof AdminBannersRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/inquiries': typeof AdminInquiriesRoute
@@ -376,6 +393,7 @@ export interface FileRoutesById {
   '/product/$id': typeof ProductIdRoute
   '/admin/': typeof AdminIndexRoute
   '/cars/': typeof CarsIndexRoute
+  '/api/admin/backups': typeof ApiAdminBackupsRoute
   '/api/admin/categories': typeof ApiAdminCategoriesRoute
   '/api/admin/news': typeof ApiAdminNewsRoute
   '/api/admin/permissions': typeof ApiAdminPermissionsRoute
@@ -403,6 +421,7 @@ export interface FileRouteTypes {
     | '/top-picks'
     | '/admin/activity'
     | '/admin/administrators'
+    | '/admin/backups'
     | '/admin/banners'
     | '/admin/categories'
     | '/admin/inquiries'
@@ -421,6 +440,7 @@ export interface FileRouteTypes {
     | '/product/$id'
     | '/admin/'
     | '/cars/'
+    | '/api/admin/backups'
     | '/api/admin/categories'
     | '/api/admin/news'
     | '/api/admin/permissions'
@@ -445,6 +465,7 @@ export interface FileRouteTypes {
     | '/top-picks'
     | '/admin/activity'
     | '/admin/administrators'
+    | '/admin/backups'
     | '/admin/banners'
     | '/admin/categories'
     | '/admin/inquiries'
@@ -463,6 +484,7 @@ export interface FileRouteTypes {
     | '/product/$id'
     | '/admin'
     | '/cars'
+    | '/api/admin/backups'
     | '/api/admin/categories'
     | '/api/admin/news'
     | '/api/admin/permissions'
@@ -488,6 +510,7 @@ export interface FileRouteTypes {
     | '/top-picks'
     | '/admin/activity'
     | '/admin/administrators'
+    | '/admin/backups'
     | '/admin/banners'
     | '/admin/categories'
     | '/admin/inquiries'
@@ -506,6 +529,7 @@ export interface FileRouteTypes {
     | '/product/$id'
     | '/admin/'
     | '/cars/'
+    | '/api/admin/backups'
     | '/api/admin/categories'
     | '/api/admin/news'
     | '/api/admin/permissions'
@@ -538,6 +562,7 @@ export interface RootRouteChildren {
   CategorySplatRoute: typeof CategorySplatRoute
   ProductIdRoute: typeof ProductIdRoute
   CarsIndexRoute: typeof CarsIndexRoute
+  ApiAdminBackupsRoute: typeof ApiAdminBackupsRoute
   ApiAdminCategoriesRoute: typeof ApiAdminCategoriesRoute
   ApiAdminNewsRoute: typeof ApiAdminNewsRoute
   ApiAdminPermissionsRoute: typeof ApiAdminPermissionsRoute
@@ -654,6 +679,13 @@ declare module '@tanstack/react-router' {
       path: '/administrators'
       fullPath: '/admin/administrators'
       preLoaderRoute: typeof AdminAdministratorsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/backups': {
+      id: '/admin/backups'
+      path: '/backups'
+      fullPath: '/admin/backups'
+      preLoaderRoute: typeof AdminBackupsRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/banners': {
@@ -775,6 +807,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProductIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/backups': {
+      id: '/api/admin/backups'
+      path: '/api/admin/backups'
+      fullPath: '/api/admin/backups'
+      preLoaderRoute: typeof ApiAdminBackupsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/categories': {
       id: '/api/admin/categories'
       path: '/api/admin/categories'
@@ -844,6 +883,7 @@ declare module '@tanstack/react-router' {
 interface AdminRouteChildren {
   AdminActivityRoute: typeof AdminActivityRoute
   AdminAdministratorsRoute: typeof AdminAdministratorsRoute
+  AdminBackupsRoute: typeof AdminBackupsRoute
   AdminBannersRoute: typeof AdminBannersRoute
   AdminCategoriesRoute: typeof AdminCategoriesRoute
   AdminInquiriesRoute: typeof AdminInquiriesRoute
@@ -859,6 +899,7 @@ interface AdminRouteChildren {
 const AdminRouteChildren: AdminRouteChildren = {
   AdminActivityRoute: AdminActivityRoute,
   AdminAdministratorsRoute: AdminAdministratorsRoute,
+  AdminBackupsRoute: AdminBackupsRoute,
   AdminBannersRoute: AdminBannersRoute,
   AdminCategoriesRoute: AdminCategoriesRoute,
   AdminInquiriesRoute: AdminInquiriesRoute,
@@ -894,6 +935,7 @@ const rootRouteChildren: RootRouteChildren = {
   CategorySplatRoute: CategorySplatRoute,
   ProductIdRoute: ProductIdRoute,
   CarsIndexRoute: CarsIndexRoute,
+  ApiAdminBackupsRoute: ApiAdminBackupsRoute,
   ApiAdminCategoriesRoute: ApiAdminCategoriesRoute,
   ApiAdminNewsRoute: ApiAdminNewsRoute,
   ApiAdminPermissionsRoute: ApiAdminPermissionsRoute,

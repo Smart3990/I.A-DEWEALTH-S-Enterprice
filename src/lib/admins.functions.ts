@@ -77,7 +77,8 @@ export const createAdministrator = createServerFn({ method: "POST" })
       email: data.email,
       password: data.password,
       email_confirm: true,
-      user_metadata: { name: data.name },
+      // The new admin is asked to replace this password on their first sign-in.
+      user_metadata: { name: data.name, must_change_password: true },
     });
     if (error || !created.user) {
       const msg = error?.message ?? "Could not create the account";
@@ -171,6 +172,9 @@ export const updateAdministrator = createServerFn({ method: "POST" })
     if (data.password) {
       const { error } = await supabaseAdmin.auth.admin.updateUserById(data.id, {
         password: data.password,
+        // A password set by someone else must be replaced at the next sign-in, unless the
+        // System Admin is changing their own.
+        user_metadata: { must_change_password: data.id !== context.userId },
       });
       if (error) throw new Error(`Could not change the password: ${error.message}`);
     }
