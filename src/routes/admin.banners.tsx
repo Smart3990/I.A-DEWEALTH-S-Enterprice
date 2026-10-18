@@ -156,10 +156,15 @@ function AdminBannersPage() {
     setEditingBanner(null);
   };
 
-  const handleResetDefaults = () => {
-    if (confirm("Reset all category banners to factory default images and copy?")) {
-      resetCategoriesToDefault();
-      toast.success("All banners reset to default");
+  const handleResetDefaults = async () => {
+    if (!confirm("Reset all category banners to factory default images and copy?")) return;
+    const failed = await resetCategoriesToDefault();
+    if (failed) {
+      toast.error(
+        `${failed} banner(s) could not be reset in the database. Check your permissions and try again.`,
+      );
+    } else {
+      toast.success("All banners reset to default on every device");
     }
   };
 

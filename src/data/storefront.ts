@@ -6,7 +6,7 @@ import {
   categories as bundledCategories,
   catalogProducts as bundledProducts,
 } from "./catalog";
-import { getAllProducts, isLegacyOldProduct } from "./products-store";
+import { isLegacyOldProduct } from "./products-store";
 
 export type SiteSettings = {
   storeName: string;
@@ -276,107 +276,14 @@ export async function fetchStorefront(): Promise<Storefront> {
     const mappedCats = (cats.data ?? []).map(mapCategory);
     const mappedProds = rawProdRows.map(mapProduct);
 
-    // Build authoritative product catalog:
-    // SUPABASE DATABASE (authoritative truth across all devices) -> Local admin drafts -> Bundled catalogue (only if DB is empty)
+    // The database is the single source of truth, so every device shows the same catalogue.
+    // Products cached in this browser are never mixed in (they would appear on one device
+    // only). The bundled catalogue is used only if the database returned nothing at all.
     const prodsMap = new Map<string, CatalogProduct>();
-
-    if (mappedProds.length > 0) {
-      // 1. Supabase database products are the source of truth across all devices
-      mappedProds.forEach((dbProd) => {
-        if (!isLegacyOldProduct(dbProd.id, dbProd.name)) {
-          prodsMap.set(dbProd.id, dbProd);
-        }
-      });
-
-      // 2. Layer any local drafts that haven't been deleted and are not legacy
-      const localProds = getAllProducts();
-      localProds.forEach((lp) => {
-        if (!prodsMap.has(lp.id) && !isLegacyOldProduct(lp.id, lp.name || lp.title)) {
-          const img = lp.image || lp.image_url || (Array.isArray(lp.images) && lp.images[0]) || "";
-          prodsMap.set(lp.id, {
-            id: lp.id,
-            name: lp.name || lp.title || "Product",
-            image: img,
-            images: Array.isArray(lp.images) && lp.images.length ? lp.images : img ? [img] : [],
-            price: Number(lp.price) || 0,
-            was: Number(lp.was ?? lp.originalPrice ?? lp.price),
-            rating: Number(lp.rating) || 4.8,
-            reviews: Number(lp.reviews ?? lp.reviewsCount) || 12,
-            sold: lp.sold || 0,
-            tag: lp.tag || lp.badge || "",
-            spec: lp.spec || lp.shortDescription || "",
-            categoryId: lp.categoryId || lp.category || "mobile-phones",
-            brand: lp.brand || (lp.specifications?.brand as string) || "",
-            condition: lp.condition || "Brand New",
-            availability: (lp.stock ?? 10) > 0 ? "In Stock" : "Out of Stock",
-            seller: lp.seller || "IA Dewealth Official Store",
-            addedAt: lp.addedAt || lp.updatedAt || new Date().toISOString(),
-            topPick: !!lp.topPick,
-            clearance: !!lp.clearance,
-            featured: !!(lp.featured || lp.isFeatured),
-            newArrival: !!(lp.newArrival || lp.isNew),
-            bestSeller: !!(lp.bestSeller || lp.isBestseller),
-            deal: !!(lp.deal || lp.isDeal),
-            description: lp.description || "",
-            sku: lp.sku || lp.id,
-            stock: lp.stock ?? 10,
-          });
-        }
-      });
-    } else {
-      // Only seed base products if Supabase database has zero products
-      bundledProducts.forEach((bp) => {
-        if (!isLegacyOldProduct(bp.id, bp.name)) {
-          prodsMap.set(bp.id, bp);
-        }
-      });
-
-      const localProds = getAllProducts();
-      localProds.forEach((lp) => {
-        const existing = prodsMap.get(lp.id);
-        const img =
-          lp.image ||
-          lp.image_url ||
-          (Array.isArray(lp.images) && lp.images[0]) ||
-          existing?.image ||
-          "";
-        prodsMap.set(lp.id, {
-          id: lp.id,
-          name: lp.name || lp.title || existing?.name || "Product",
-          image: img,
-          images:
-            Array.isArray(lp.images) && lp.images.length
-              ? lp.images
-              : existing?.images && existing.images.length
-                ? existing.images
-                : img
-                  ? [img]
-                  : [],
-          price: Number(lp.price) || existing?.price || 0,
-          was: Number(lp.was ?? lp.originalPrice ?? existing?.was ?? lp.price),
-          rating: Number(lp.rating) || 4.8,
-          reviews: Number(lp.reviews ?? lp.reviewsCount) || 12,
-          sold: lp.sold || 0,
-          tag: lp.tag || lp.badge || existing?.tag || "",
-          spec: lp.spec || lp.shortDescription || existing?.spec || "",
-          categoryId: lp.categoryId || lp.category || existing?.categoryId || "mobile-phones",
-          brand: lp.brand || (lp.specifications?.brand as string) || existing?.brand || "",
-          condition: lp.condition || existing?.condition || "Brand New",
-          availability: (lp.stock ?? 10) > 0 ? "In Stock" : "Out of Stock",
-          seller: lp.seller || existing?.seller || "IA Dewealth Official Store",
-          addedAt: lp.addedAt || lp.updatedAt || existing?.addedAt || new Date().toISOString(),
-          topPick: !!lp.topPick,
-          clearance: !!lp.clearance,
-          featured: !!(lp.featured || lp.isFeatured),
-          newArrival: !!(lp.newArrival || lp.isNew),
-          bestSeller: !!(lp.bestSeller || lp.isBestseller),
-          deal: !!(lp.deal || lp.isDeal),
-          description: lp.description || existing?.description || "",
-          sku: lp.sku || lp.id,
-          stock: lp.stock ?? 10,
-        });
-      });
-    }
+    const source = mappedProds.length > 0 ? mappedProds : bundledProducts;
+    source.forEach((p) => {
+      if (!isLegacyOldProduct(p.id, p.name)) prodsMap.set(p.id, p);
+    });
 
     // Extract extended site config if saved in system banners
     let siteConfigExt: Record<string, any> = {};
@@ -441,6 +348,9 @@ export async function fetchStorefront(): Promise<Storefront> {
               "Monday – Saturday: 8:30 AM – 7:30 PM (Sunday: Closed)",
           }),
         );
+        // Components reading these settings (footer, SuperDeals timer) refresh on this event,
+        // so values saved on another device show without a page reload.
+        window.dispatchEvent(new Event("ia_site_settings_updated"));
       } catch {
         // ignore
       }
@@ -474,7 +384,7 @@ export async function fetchStorefront(): Promise<Storefront> {
     console.warn("[Storefront] Error loading storefront from database, using local fallback:", err);
     return {
       categories: bundledCategories,
-      products: getCombinedCatalogProducts(bundledProducts),
+      products: bundledProducts,
       sections: [],
       banners: [],
       nav: [],
@@ -487,7 +397,10 @@ export async function fetchStorefront(): Promise<Storefront> {
 export const storefrontQuery = queryOptions({
   queryKey: ["storefront"],
   queryFn: fetchStorefront,
-  initialData: () => ({
+  // No initialData: it would count as fresh cached data, so loaders (ensureQueryData) and
+  // components would serve the bundled build-time catalogue and never ask the database.
+  // placeholderData only fills the gap while the real request is in flight.
+  placeholderData: {
     categories: bundledCategories,
     products: bundledProducts,
     sections: [],
@@ -495,8 +408,10 @@ export const storefrontQuery = queryOptions({
     nav: [],
     settings: defaultSettings,
     hub: {},
-  }),
-  staleTime: 30_000,
-  refetchOnWindowFocus: false,
-  refetchOnMount: false,
+  },
+  // Keep every open page in step with admin changes made on other devices.
+  staleTime: 15_000,
+  refetchOnMount: true,
+  refetchOnWindowFocus: true,
+  refetchInterval: 60_000,
 });

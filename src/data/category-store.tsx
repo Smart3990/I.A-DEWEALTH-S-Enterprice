@@ -4,68 +4,25 @@ import {
   type Category,
   type CatalogProduct,
   catalogProducts,
+  applyCatalogSnapshot,
+  seedCategories,
 } from "./catalog";
 import { sendAdminChange } from "@/lib/admin-fetch";
-import { toast } from "sonner";
 
-const STORAGE_KEY = "ia_admin_categories";
 const EVENT_KEY = "ia_categories_updated";
 
+/**
+ * The category list loaded from the database (kept in the shared catalogue snapshot).
+ * A browser-local copy is never preferred: it made edits look saved on one device only.
+ */
 export function getCustomCategories(): Category[] {
-  if (typeof window === "undefined") return liveCategories;
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return liveCategories;
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : liveCategories;
-  } catch {
-    return liveCategories;
-  }
+  return liveCategories;
 }
 
+/** Updates the in-memory list so admin screens reflect an edit before the next reload. */
 export function saveCategories(updated: Category[]) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    window.dispatchEvent(new Event(EVENT_KEY));
-
-    if (typeof window !== "undefined") {
-      // Sync each category to database; report once if any did not save.
-      const sends = updated.map((cat) =>
-        sendAdminChange(
-          "/api/admin/categories",
-          {
-            method: "POST",
-            body: JSON.stringify({
-              id: cat.id,
-              name: cat.name,
-              slug: cat.slug,
-              parent_id: cat.parentId,
-              description: cat.description,
-              banner_image: cat.bannerImage,
-              banner_title: cat.bannerTitle,
-              banner_subtitle: cat.bannerSubtitle,
-              banner_cta: cat.bannerCTA,
-              icon: cat.icon,
-              is_active: cat.isActive,
-              sort_order: cat.sortOrder,
-            }),
-          },
-          "",
-          { quiet: true },
-        ),
-      );
-      void Promise.all(sends).then((results) => {
-        const failed = results.filter((ok) => !ok).length;
-        if (failed) {
-          toast.error(
-            `${failed} categor${failed === 1 ? "y was" : "ies were"} not saved to the database. Check your connection and admin session, then save again.`,
-          );
-        }
-      });
-    }
-  } catch (e) {
-    console.error("Failed to save categories:", e);
-  }
+  applyCatalogSnapshot(updated, catalogProducts);
+  window.dispatchEvent(new Event(EVENT_KEY));
 }
 
 export function updateCategoryBanner(
@@ -104,13 +61,48 @@ export function updateCategoryBanner(
   }
 }
 
-export function resetCategoriesToDefault() {
-  try {
-    localStorage.removeItem(STORAGE_KEY);
-    window.dispatchEvent(new Event(EVENT_KEY));
-  } catch (e) {
-    console.error("Failed to reset categories:", e);
-  }
+/**
+ * Restores every category banner to the built-in image and copy, on the server.
+ * Resolves with how many categories failed to save.
+ */
+export async function resetCategoriesToDefault(): Promise<number> {
+  const defaults = new Map(seedCategories.map((c) => [c.id, c]));
+  const targets = liveCategories.filter((c) => defaults.has(c.id));
+  const results = await Promise.all(
+    targets.map((c) => {
+      const d = defaults.get(c.id)!;
+      return sendAdminChange(
+        "/api/admin/categories",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            id: c.id,
+            banner_title: d.bannerTitle,
+            banner_subtitle: d.bannerSubtitle,
+            banner_image: d.bannerImage,
+            banner_cta: d.bannerCTA,
+          }),
+        },
+        "",
+        { quiet: true },
+      );
+    }),
+  );
+  saveCategories(
+    liveCategories.map((c): Category => {
+      const d = defaults.get(c.id);
+      return d
+        ? {
+            ...c,
+            bannerTitle: d.bannerTitle,
+            bannerSubtitle: d.bannerSubtitle,
+            bannerImage: d.bannerImage,
+            ...(d.bannerCTA !== undefined ? { bannerCTA: d.bannerCTA } : {}),
+          }
+        : c;
+    }),
+  );
+  return results.filter((ok) => !ok).length;
 }
 
 type CategoryTree = {

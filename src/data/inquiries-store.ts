@@ -117,18 +117,17 @@ export async function fetchInquiriesFromServer(): Promise<CustomerInquiry[]> {
     }
     const data = await res.json();
     if (Array.isArray(data?.inquiries)) {
-      const deletedIds = getDeletedInquiryIds();
-      const serverInquiries: CustomerInquiry[] = data.inquiries.filter(
-        (i: CustomerInquiry) => !deletedIds.has(i.id),
+      // The server list is the truth on every device. Entries only in this browser (or hidden
+      // here after a delete the server never confirmed) would make admins see different
+      // inboxes. Only the per-device "read" marker is carried over.
+      const readIds = new Set(
+        getInquiries()
+          .filter((i) => i.isRead)
+          .map((i) => i.id),
       );
-      const currentLocal = getInquiries();
-
-      // Merge: server inquiries take precedence. Any local inquiry with temporary id (like inq-123)
-      // that isn't yet in server list is preserved at the top.
-      const serverIds = new Set(serverInquiries.map((i) => i.id));
-      const localOnly = currentLocal.filter((i) => !serverIds.has(i.id) && !deletedIds.has(i.id));
-
-      const finalInquiries = [...localOnly, ...serverInquiries];
+      const finalInquiries: CustomerInquiry[] = data.inquiries.map((i: CustomerInquiry) =>
+        readIds.has(i.id) ? { ...i, isRead: true } : i,
+      );
 
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(finalInquiries));

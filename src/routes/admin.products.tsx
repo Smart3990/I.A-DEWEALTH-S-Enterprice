@@ -36,6 +36,7 @@ import {
   deleteProduct as deleteLocalProduct,
   deleteMultipleProducts,
   getDeletedProductIds,
+  unmarkProductDeleted,
   isLegacyOldProduct,
   EVENT_KEY,
   type AdminProduct,
@@ -149,168 +150,81 @@ function ProductsAdmin() {
   } = useQuery({
     queryKey: ["admin", "products-catalog"],
     queryFn: async () => {
-      const deletedIds = getDeletedProductIds();
-
-      // 1. Always load all products from local unified store
       const local = getAllProducts();
-      const mergedMap = new Map<string, ProductRecord>();
-
-      // Populate local products first
-      local.forEach((p) => {
-        if (deletedIds.has(p.id) || isLegacyOldProduct(p.id, p.name || p.title)) return;
-        const title = p.name || p.title || "Product";
-        const img = p.image || p.image_url || "";
-        mergedMap.set(p.id, {
-          id: p.id,
+      const toRecord = (row: Record<string, unknown>): ProductRecord => {
+        const rowImages = Array.isArray(row.images) ? (row.images as string[]) : [];
+        const image = String(row.image || row.image_url || (rowImages[0] ?? ""));
+        const title = String(row.title || row.name || "Product");
+        return {
+          ...row,
+          id: String(row.id || ""),
           name: title,
-          title: title,
-          price: Number(p.price) || 0,
-          compare_at_price: p.was ?? p.originalPrice,
-          original_price: p.originalPrice ?? p.was,
-          was_price: p.was ?? p.originalPrice,
-          stock: p.stock ?? 15,
-          category_id: p.categoryId || p.category,
-          category: p.category || p.categoryId,
-          brand: p.brand || "",
-          image_url: img,
-          image: img,
-          images: p.images || [],
-          short_description: p.spec || p.shortDescription || "",
-          spec: p.spec || p.shortDescription || "",
-          is_deal: !!(p.deal || p.isDeal),
-          is_super_deal: !!(p.deal || p.isDeal),
-          is_featured: !!(p.featured || p.isFeatured),
-          is_best_seller: !!(p.bestSeller || p.isBestseller),
-          is_new_arrival: !!(p.newArrival || p.isNew),
-          is_clearance: !!p.clearance,
-          top_pick: !!p.topPick,
-          rating: p.rating || 4.8,
-          sold_count: p.sold || 0,
-          created_at: p.addedAt || new Date().toISOString(),
-        } as unknown as ProductRecord);
-      });
+          title,
+          price: Number(row.price) || 0,
+          was_price: Number(row.was_price ?? row.original_price ?? row.price ?? 0),
+          stock: row.stock !== undefined && row.stock !== null ? Number(row.stock) : 0,
+          image,
+          image_url: image,
+          images: rowImages.length > 0 ? rowImages : image ? [image] : [],
+          category_id: (row.category_id as string | null) || undefined,
+          brand: (row.brand as string) || "",
+          spec: (row.spec as string) || (row.short_description as string) || "",
+          is_active: row.is_active !== undefined ? Boolean(row.is_active) : true,
+          is_deal: Boolean(row.is_deal ?? row.is_super_deal),
+          is_super_deal: Boolean(row.is_super_deal ?? row.is_deal),
+          is_featured: Boolean(row.is_featured),
+          is_best_seller: Boolean(row.is_best_seller ?? row.is_bestseller),
+          is_new_arrival: Boolean(row.is_new_arrival ?? row.is_new),
+          is_clearance: Boolean(row.is_clearance),
+          top_pick: Boolean(row.top_pick ?? row.is_top_pick),
+        } as ProductRecord;
+      };
 
-      // 2. Fetch from /api/admin/products (authoritative cloud PostgreSQL)
-      let remoteRows: Record<string, unknown>[] = [];
+      // The database is the only source of truth, so every device lists exactly the same
+      // products. This browser's cache is used only if the server cannot be reached.
+      let remoteRows: Record<string, unknown>[];
       try {
         const res = await adminFetch("/api/admin/products");
-        if (res.ok) {
-          const json = await res.json();
-          if (Array.isArray(json.products) && json.products.length > 0) {
-            remoteRows = json.products;
-          }
-        }
-      } catch (apiErr) {
-        console.warn("API /api/admin/products fetch skipped, trying direct client:", apiErr);
+        if (!res.ok) throw new Error(await readApiError(res));
+        const json = await res.json();
+        remoteRows = Array.isArray(json.products) ? json.products : [];
+      } catch (err) {
+        toast.error(
+          `Could not load products from the database (${err instanceof Error ? err.message : String(err)}). Showing this browser's last copy.`,
+        );
+        return local
+          .filter((p) => !isLegacyOldProduct(p.id, p.name || p.title))
+          .map((p) =>
+            toRecord({
+              ...p,
+              title: p.name || p.title,
+              original_price: p.originalPrice ?? p.was,
+              category_id: p.categoryId || p.category,
+              short_description: p.spec || p.shortDescription,
+            } as unknown as Record<string, unknown>),
+          );
       }
 
-      // Fallback to direct client query if server API was unavailable
-      if (remoteRows.length === 0) {
-        try {
-          const { data, error } = await supabase
-            .from("products")
-            .select("*")
-            .order("created_at", { ascending: false })
-            .limit(10000);
-          if (!error && data && data.length > 0) {
-            remoteRows = data as Record<string, unknown>[];
-          }
-        } catch (err) {
-          console.warn("Supabase products direct fetch skipped:", err);
-        }
-      }
+      // Anything this browser once hid as "deleted" but the database still has was never
+      // really deleted: show it again everywhere.
+      const remoteIds = new Set(remoteRows.map((r) => String(r.id)));
+      getDeletedProductIds().forEach((id) => {
+        if (remoteIds.has(id)) unmarkProductDeleted(id);
+      });
 
-      if (remoteRows.length > 0) {
-        remoteRows.forEach((row: Record<string, unknown>) => {
-          const rowId = String(row.id || "");
-          const rowName = String(row.name || row.title || "");
-          if (deletedIds.has(rowId) || isLegacyOldProduct(rowId, rowName)) return;
-          const existing = mergedMap.get(rowId);
-          const rowImages = Array.isArray(row.images) ? row.images : [];
-          const rowImage = String(row.image || row.image_url || (rowImages[0] ?? ""));
-          const existingImages = Array.isArray(existing?.images) ? existing.images : [];
-          const existingImage = existing?.image || existing?.image_url || (existingImages[0] ?? "");
-          const finalImage = existingImage || rowImage || "";
-
-          // Remote Supabase database record is authoritative so all devices see exactly the same updated data
-          mergedMap.set(rowId, {
-            ...(existing || {}),
-            ...row,
-            id: rowId,
-            name: String(row.name || row.title || existing?.name || existing?.title || "Product"),
-            title: String(row.title || row.name || existing?.title || existing?.name || "Product"),
-            price:
-              row.price !== undefined && row.price !== null
-                ? Number(row.price)
-                : Number(existing?.price) || 0,
-            was_price:
-              row.was_price !== undefined && row.was_price !== null
-                ? Number(row.was_price)
-                : Number(
-                    row.original_price ??
-                      existing?.was_price ??
-                      existing?.original_price ??
-                      row.price ??
-                      0,
-                  ),
-            stock:
-              row.stock !== undefined && row.stock !== null
-                ? Number(row.stock)
-                : Number(existing?.stock) || 10,
-            image: finalImage,
-            image_url: finalImage,
-            images:
-              rowImages.length > 0
-                ? rowImages
-                : existingImages.length > 0
-                  ? existingImages
-                  : finalImage
-                    ? [finalImage]
-                    : [],
-            category_id: (row.category_id as string | null) || existing?.category_id || undefined,
-            brand: (row.brand as string) || existing?.brand || "",
-            spec: (row.spec as string) || existing?.spec || existing?.short_description || "",
-            is_active: row.is_active !== undefined ? Boolean(row.is_active) : true,
-            is_deal: Boolean(row.is_deal ?? row.is_super_deal),
-            is_super_deal: Boolean(row.is_super_deal ?? row.is_deal),
-            is_featured: Boolean(row.is_featured),
-            is_best_seller: Boolean(row.is_best_seller ?? row.is_bestseller),
-            is_new_arrival: Boolean(row.is_new_arrival ?? row.is_new),
-            is_clearance: Boolean(row.is_clearance),
-            top_pick: Boolean(row.top_pick ?? row.is_top_pick),
-          } as ProductRecord);
-        });
-      }
-
-      // Check for locally authored products that haven't reached Supabase yet
-      const remoteIdSet = new Set(remoteRows.map((r) => String(r.id)));
-      const unsynced = local.filter((p) => !deletedIds.has(p.id) && !remoteIdSet.has(String(p.id)));
-
+      // Products that exist only in this browser (a save that never reached the database)
+      // are not listed; the banner offers an explicit "Sync to Cloud" instead of silently
+      // re-uploading them, which could resurrect products deleted on another device.
+      const unsynced = local.filter((p) => !remoteIds.has(String(p.id)));
       setCloudSyncInfo({
         cloudCount: remoteRows.length,
         unsyncedCount: unsynced.length,
         lastSyncedAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       });
 
-      // Background auto-sync of any unsynced local products
-      if (unsynced.length > 0) {
-        adminFetch("/api/admin/products", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ products: unsynced }),
-        })
-          .then((r) => r.json())
-          .then((res) => {
-            if (res.success) {
-              setCloudSyncInfo((prev) => ({ ...prev, unsyncedCount: 0 }));
-            }
-          })
-          .catch(() => {});
-      }
-
-      return Array.from(mergedMap.values()).filter(
-        (p) => !deletedIds.has(p.id) && !isLegacyOldProduct(p.id, p.name || p.title),
-      );
+      return remoteRows
+        .filter((r) => !isLegacyOldProduct(String(r.id || ""), String(r.title || r.name || "")))
+        .map(toRecord);
     },
   });
 
@@ -318,9 +232,17 @@ function ProductsAdmin() {
   const handleSyncAllToCloud = useCallback(async () => {
     try {
       setIsSyncingCloud(true);
-      const local = getAllProducts();
+      // Upload only products the database does not have yet. Re-sending products that
+      // already exist would overwrite newer edits made on other devices.
       const deletedIds = getDeletedProductIds();
-      const validLocal = local.filter((p) => !deletedIds.has(p.id));
+      const remoteIds = new Set(products.map((p) => p.id));
+      const validLocal = getAllProducts().filter(
+        (p) => !deletedIds.has(p.id) && !remoteIds.has(p.id),
+      );
+      if (validLocal.length === 0) {
+        toast.info("Everything in this browser is already in the database.");
+        return;
+      }
 
       const res = await adminFetch("/api/admin/products", {
         method: "POST",
@@ -351,7 +273,7 @@ function ProductsAdmin() {
     } finally {
       setIsSyncingCloud(false);
     }
-  }, [qc, refetch]);
+  }, [qc, refetch, products]);
 
   // Listen to product update events for instant reactive list refresh
   useEffect(() => {

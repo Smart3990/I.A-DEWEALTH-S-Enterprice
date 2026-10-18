@@ -247,11 +247,8 @@ export function getCombinedCatalogProducts(
 export function saveProducts(products: AdminProduct[]): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(products));
-    try {
-      applyCatalogSnapshot([], getCombinedCatalogProducts());
-    } catch {
-      // ignore
-    }
+    // Listeners refetch the storefront from the database; the shared catalogue snapshot is
+    // only ever replaced with database data, never with this browser's local copy.
     window.dispatchEvent(new Event(EVENT_KEY));
     window.dispatchEvent(new CustomEvent(EVENT_KEY, { detail: { products } }));
   } catch (e) {

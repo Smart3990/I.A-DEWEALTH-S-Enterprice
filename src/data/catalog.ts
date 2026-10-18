@@ -100,7 +100,7 @@ const cat = (
   sortOrder,
 });
 
-const seedCategories: Category[] = [
+export const seedCategories: Category[] = [
   // ---------- Phones & Tablets ----------
   cat(
     "phones-tablets",
@@ -739,6 +739,10 @@ export function applyCatalogSnapshot(nextCategories: Category[], nextProducts: C
   if (nextCategories.length) categories = nextCategories;
   catalogProducts = nextProducts;
   recompute();
+  // Admin screens re-read the category list when the database copy arrives.
+  if (typeof window !== "undefined" && nextCategories.length) {
+    window.dispatchEvent(new Event("ia_categories_updated"));
+  }
 }
 
 recompute();
