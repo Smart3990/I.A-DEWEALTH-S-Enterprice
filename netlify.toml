@@ -4,7 +4,9 @@
 
 [build.environment]
   NITRO_PRESET = "netlify"
-  NODE_VERSION = "20"
+  # supabase-js needs a native WebSocket (Node 22+); on Node 20 every server DB call fails.
+  NODE_VERSION = "22"
+  AWS_LAMBDA_JS_RUNTIME = "nodejs22.x"
 
 [functions]
   directory = ".netlify/functions-internal"
