@@ -44,6 +44,31 @@ async function verifyPassword(email: string, password: string): Promise<boolean>
   return true;
 }
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}/;
+
+/**
+ * Format-independent form of a row for comparison. Backups come from Postgres to_jsonb and
+ * live rows from the REST API, which differ in key order and timestamp/number formatting.
+ */
+function canonical(value: unknown, key = ""): string {
+  if (key === "updated_at") return "";
+  if (Array.isArray(value)) return `[${value.map((v) => canonical(v)).join(",")}]`;
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Row)
+      .filter(([k]) => k !== "updated_at")
+      .sort(([a], [b]) => a.localeCompare(b));
+    return `{${entries.map(([k, v]) => `${k}:${canonical(v, k)}`).join(",")}}`;
+  }
+  if (typeof value === "string" && ISO_DATE.test(value)) {
+    const ms = Date.parse(value.replace(" ", "T"));
+    if (!Number.isNaN(ms)) return `d${ms}`;
+  }
+  if (typeof value === "number" || (typeof value === "string" && /^-?\d+(\.\d+)?$/.test(value))) {
+    return `n${Number(value)}`;
+  }
+  return JSON.stringify(value ?? null);
+}
+
 function rowLabel(table: string, row: Row): string {
   const name = row["title"] ?? row["name"] ?? row["customer_name"] ?? row["label"] ?? row["id"];
   return String(name ?? "");
@@ -67,9 +92,7 @@ async function describeChanges(backupData: Record<string, Row[]>) {
       t.restore === "replace"
         ? saved.filter((r) => {
             const now = currentById.get(String(r["id"]));
-            if (!now) return false;
-            const strip = (x: Row) => JSON.stringify({ ...x, updated_at: undefined });
-            return strip(now) !== strip(r);
+            return now ? canonical(now) !== canonical(r) : false;
           })
         : [];
 
