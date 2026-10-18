@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { WHATSAPP } from "./products";
 import { adminFetch, sendAdminChange } from "@/lib/admin-fetch";
 
 export interface NewsItem {
@@ -66,7 +65,8 @@ export const DEFAULT_NEWS_TICKER_CONFIG: NewsTickerConfig = {
   supportLink: {
     enabled: true,
     text: "Direct WhatsApp Support",
-    url: `https://wa.me/${WHATSAPP}`,
+    // Empty: the header links to the WhatsApp number saved in Settings (read at render time).
+    url: "",
   },
   backgroundColor: "#00a884",
   textColor: "#ffffff",

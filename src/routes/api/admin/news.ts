@@ -28,10 +28,18 @@ export const Route = createFileRoute("/api/admin/news")({
           }
 
           if (config && typeof config === "object") {
+            // Default support link follows the WhatsApp number saved in Settings.
+            const { data: settingsRow } = await supabaseAdmin
+              .from("site_settings")
+              .select("whatsapp_number")
+              .limit(1)
+              .maybeSingle();
+            const waDigits =
+              String(settingsRow?.whatsapp_number ?? "").replace(/D/g, "") || "233555526233";
             const defaultSupport = {
               enabled: true,
               text: "Direct WhatsApp Support",
-              url: "https://wa.me/233555526233",
+              url: `https://wa.me/${waDigits}`,
             };
             const defaultTier = {
               enabled: true,
