@@ -41,11 +41,13 @@ import {
   AreaChart,
   Area,
 } from "recharts";
-import { getSiteConfig } from "@/data/site";
+import { getSiteConfig, useSite } from "@/data/site";
+import { logActivity } from "@/lib/admin-auth";
+import { useQueryClient } from "@tanstack/react-query";
 import { getAllProducts } from "@/data/products-store";
 import { type Category } from "@/data/catalog";
 import { getCustomCategories } from "@/data/category-store";
-import { useCurrentSiteSettings, saveSuperDealsDuration } from "@/data/site-settings-store";
+import { saveSuperDealsDuration, stopSuperDeals } from "@/data/site-settings-store";
 import { getInquiries, fetchInquiriesFromServer, markInquiryAsRead } from "@/data/inquiries-store";
 import {
   getPendingReviews,
@@ -87,12 +89,23 @@ export function AdminDashboard() {
   const [subcatParentFilter, setSubcatParentFilter] = useState<string>("all");
   const [activeWorkstreamHint, setActiveWorkstreamHint] = useState<string | null>(null);
 
-  // SuperDeals countdown control state
-  const [settings] = useCurrentSiteSettings();
+  // SuperDeals countdown control state, loaded from the server (same on every device)
+  const qc = useQueryClient();
+  const { settings } = useSite();
   const [sdHours, setSdHours] = useState<number>(settings.superdealsHours ?? 8);
   const [sdMinutes, setSdMinutes] = useState<number>(settings.superdealsMinutes ?? 29);
   const [sdSeconds, setSdSeconds] = useState<number>(settings.superdealsSeconds ?? 33);
   const [isSavingTimer, setIsSavingTimer] = useState(false);
+  const [timerNow, setTimerNow] = useState(() => Date.now());
+  const promoEndsAt = settings.superdealsEndsAt ? new Date(settings.superdealsEndsAt) : null;
+  const promoLeft = promoEndsAt
+    ? Math.max(0, Math.floor((promoEndsAt.getTime() - timerNow) / 1000))
+    : 0;
+
+  useEffect(() => {
+    const t = setInterval(() => setTimerNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   useEffect(() => {
     if (settings.superdealsHours !== undefined) setSdHours(settings.superdealsHours);
@@ -207,14 +220,31 @@ export function AdminDashboard() {
   };
 
   const handleSaveTimer = async () => {
+    if (sdHours * 3600 + sdMinutes * 60 + sdSeconds <= 0) {
+      toast.error("Set a countdown longer than zero.");
+      return;
+    }
     setIsSavingTimer(true);
     try {
-      await saveSuperDealsDuration(sdHours, sdMinutes, sdSeconds);
-      toast.success(
-        `SuperDeals timer saved! Storefront resets to ${String(sdHours).padStart(2, "0")}:${String(sdMinutes).padStart(2, "0")}:${String(sdSeconds).padStart(2, "0")} on page restart.`,
-      );
-    } catch {
-      toast.error("Failed to save SuperDeals timer.");
+      // saveSuperDealsDuration shows its own error toast when the server refuses.
+      if (await saveSuperDealsDuration(sdHours, sdMinutes, sdSeconds)) {
+        await qc.invalidateQueries({ queryKey: ["storefront"] });
+        await logActivity(`Started SuperDeals promo for ${sdHours}h ${sdMinutes}m ${sdSeconds}s`);
+        toast.success("SuperDeals promo started — the same countdown now shows on every device.");
+      }
+    } finally {
+      setIsSavingTimer(false);
+    }
+  };
+
+  const handleStopTimer = async () => {
+    setIsSavingTimer(true);
+    try {
+      if (await stopSuperDeals()) {
+        await qc.invalidateQueries({ queryKey: ["storefront"] });
+        await logActivity("Ended SuperDeals promo");
+        toast.success("SuperDeals promo ended — the section is now hidden on every device.");
+      }
     } finally {
       setIsSavingTimer(false);
     }
@@ -659,8 +689,16 @@ export function AdminDashboard() {
               Configure SuperDeals Countdown Duration
             </h3>
             <p className="text-xs text-slate-600 max-w-2xl">
-              The storefront countdown resets to this configured duration whenever a customer opens
-              or refreshes the page.
+              Starting a promo sets one end time on the server, so every phone and computer shows
+              the same countdown. When it reaches zero the SuperDeals section hides everywhere until
+              you start a new one.{" "}
+              <strong className={promoLeft > 0 ? "text-emerald-700" : "text-slate-500"}>
+                {promoLeft > 0 && promoEndsAt
+                  ? `Running — ends ${promoEndsAt.toLocaleString()}`
+                  : promoEndsAt
+                    ? "Not running (last promo has ended)."
+                    : "Not running yet."}
+              </strong>
             </p>
           </div>
 
@@ -670,19 +708,24 @@ export function AdminDashboard() {
               <div className="text-[10px] uppercase font-black tracking-wide text-orange-100">
                 Storefront Preview
               </div>
-              <div className="text-xs font-bold text-white">Ends:</div>
+              <div className="text-xs font-bold text-white">
+                {promoLeft > 0 ? "Live now:" : "Will start at:"}
+              </div>
             </div>
             <div className="flex items-center gap-1 font-mono text-xs font-black">
               <span className="rounded bg-slate-900/80 px-2 py-1 shadow-inner">
-                {String(sdHours).padStart(2, "0")}
+                {String(promoLeft > 0 ? Math.floor(promoLeft / 3600) : sdHours).padStart(2, "0")}
               </span>
               :
               <span className="rounded bg-slate-900/80 px-2 py-1 shadow-inner">
-                {String(sdMinutes).padStart(2, "0")}
+                {String(promoLeft > 0 ? Math.floor((promoLeft % 3600) / 60) : sdMinutes).padStart(
+                  2,
+                  "0",
+                )}
               </span>
               :
               <span className="rounded bg-slate-900/80 px-2 py-1 shadow-inner">
-                {String(sdSeconds).padStart(2, "0")}
+                {String(promoLeft > 0 ? promoLeft % 60 : sdSeconds).padStart(2, "0")}
               </span>
             </div>
           </div>
@@ -696,7 +739,7 @@ export function AdminDashboard() {
               <input
                 type="number"
                 min={0}
-                max={99}
+                max={999}
                 value={sdHours}
                 onChange={(e) => setSdHours(Math.max(0, parseInt(e.target.value) || 0))}
                 className="w-16 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-center text-sm font-black text-slate-800 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
@@ -778,16 +821,32 @@ export function AdminDashboard() {
             </div>
           </div>
 
-          {/* Save Button */}
-          <button
-            type="button"
-            disabled={isSavingTimer}
-            onClick={handleSaveTimer}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-600 to-amber-600 px-5 py-2 text-xs font-bold text-white shadow-sm hover:opacity-95 active:scale-95 disabled:opacity-50 transition cursor-pointer"
-          >
-            <Save className="h-4 w-4" />
-            {isSavingTimer ? "Saving Timer..." : "Save Countdown Timer"}
-          </button>
+          {/* Start / end buttons */}
+          <div className="flex flex-wrap gap-2">
+            {promoLeft > 0 && (
+              <button
+                type="button"
+                disabled={isSavingTimer}
+                onClick={handleStopTimer}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-orange-300 bg-white px-4 py-2 text-xs font-bold text-orange-700 hover:bg-orange-50 disabled:opacity-50 transition cursor-pointer"
+              >
+                End promo now
+              </button>
+            )}
+            <button
+              type="button"
+              disabled={isSavingTimer}
+              onClick={handleSaveTimer}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-600 to-amber-600 px-5 py-2 text-xs font-bold text-white shadow-sm hover:opacity-95 active:scale-95 disabled:opacity-50 transition cursor-pointer"
+            >
+              <Save className="h-4 w-4" />
+              {isSavingTimer
+                ? "Saving..."
+                : promoLeft > 0
+                  ? "Restart with this duration"
+                  : "Start SuperDeals promo"}
+            </button>
+          </div>
         </div>
       </div>
 

@@ -70,12 +70,14 @@ function DeliveryPage() {
   const [siteConfig] = useSiteConfig();
   const { settings } = useSite();
 
-  const phoneDisplay = siteConfig.phone || settings.phone || "+233 55 552 6233";
-  const whatsappNum = siteConfig.whatsappNumber || settings.whatsappNumber || WHATSAPP;
-  const emailDisplay = siteConfig.email || settings.email || "sales@iadewealth.com";
+  // Contact details saved in admin Settings (server) come first; siteConfig holds this
+  // browser's copy and built-in defaults, which used to hide the admin's values.
+  const phoneDisplay = settings.phone || siteConfig.phone || "+233 55 552 6233";
+  const whatsappNum = settings.whatsappNumber || siteConfig.whatsappNumber || WHATSAPP;
+  const emailDisplay = settings.email || siteConfig.email || "sales@iadewealth.com";
   const addressDisplay =
-    siteConfig.address ||
     settings.address ||
+    siteConfig.address ||
     "Circle Tip Toe Lane, Opposite Vodafone Building, Accra, Ghana";
   const visitUsHub = siteConfig.visitUsLocation || "Circle Tip Toe Lane, Central Accra Hub";
   const workingHours =
@@ -138,7 +140,6 @@ function DeliveryPage() {
           message: message.trim(),
         });
       }
-
     } catch (err) {
       console.warn("Notice: Saved to local store; remote sync status:", err);
       addInquiry({

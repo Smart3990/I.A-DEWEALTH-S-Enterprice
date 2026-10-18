@@ -85,15 +85,6 @@ const groups: { id: string; title: string; fields: Field[] }[] = [
       { key: "max_qty_per_product", label: "Max quantity per product", type: "number" },
     ],
   },
-  {
-    id: "superdeals",
-    title: "SuperDeals Flash Countdown Settings",
-    fields: [
-      { key: "superdeals_hours", label: "Countdown Hours (e.g. 8)", type: "number" },
-      { key: "superdeals_minutes", label: "Countdown Minutes (e.g. 29)", type: "number" },
-      { key: "superdeals_seconds", label: "Countdown Seconds (e.g. 33)", type: "number" },
-    ],
-  },
 ];
 
 function SettingsAdmin() {
@@ -117,9 +108,6 @@ function SettingsAdmin() {
       favorites_enabled: unified.favoritesEnabled,
       cart_enabled: unified.cartEnabled,
       max_qty_per_product: unified.maxQtyPerProduct,
-      superdeals_hours: unified.superdealsHours ?? 8,
-      superdeals_minutes: unified.superdealsMinutes ?? 29,
-      superdeals_seconds: unified.superdealsSeconds ?? 33,
     };
   });
   const [saved, setSaved] = useState(false);
@@ -134,88 +122,102 @@ function SettingsAdmin() {
 
   const detectCurrentLocation = () => {
     if (typeof window === "undefined" || !navigator.geolocation) {
-      toast.error("Geolocation is not supported by your browser");
+      toast.error("Location is not supported by this browser");
       return;
     }
     setIsLocating(true);
-    setLocatingStatus("Detecting your exact GPS coordinates…");
+    setLocatingStatus(
+      "Getting a precise GPS fix… (stand outside or near a window for best accuracy)",
+    );
 
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
+    // The first reading is often a rough Wi-Fi/IP estimate. Watch for up to 20s and keep
+    // the most accurate fix, stopping early once it is within 25 m.
+    let best: GeolocationPosition | null = null;
+    let finished = false;
+    const finish = async () => {
+      if (finished) return;
+      finished = true;
+      navigator.geolocation.clearWatch(watchId);
+      clearTimeout(timer);
+      if (!best) {
+        setIsLocating(false);
+        setLocatingStatus("Could not get your location. Allow location access and try again.");
+        setTimeout(() => setLocatingStatus(null), 5000);
+        return;
+      }
+      const { latitude, longitude, accuracy } = best.coords;
+      const meters = Math.round(accuracy);
+      try {
+        setLocatingStatus(`Got a fix accurate to about ±${meters} m. Looking up the address…`);
+        let placeAddress = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
         try {
-          const { latitude, longitude } = pos.coords;
-          setLocatingStatus("Looking up address name…");
-
-          let placeAddress = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
-          try {
-            const resp = await fetch(
-              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
-              { headers: { "Accept-Language": "en" } },
-            );
-            if (resp.ok) {
-              const resData = await resp.json();
-              if (resData?.display_name) {
-                placeAddress = resData.display_name;
-              }
-            }
-          } catch (e) {
-            console.warn("Geocoding lookup notice:", e);
+          const resp = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
+            { headers: { "Accept-Language": "en" } },
+          );
+          if (resp.ok) {
+            const resData = await resp.json();
+            if (resData?.display_name) placeAddress = resData.display_name;
           }
-
-          const mapUrl = `https://maps.google.com/maps?q=${latitude},${longitude}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
-
-          setDeliveryConfig((prev) => ({
-            ...prev,
-            address: placeAddress,
-            mapLocation: placeAddress,
-            mapEmbedUrl: mapUrl,
-            visitUsLocation: placeAddress.split(",")[0] || placeAddress,
-          }));
-
-          setForm((prev) => ({
-            ...prev,
-            address: placeAddress,
-          }));
-
-          saveSiteConfig({
-            address: placeAddress,
-          });
-          saveUnifiedSettings({
-            address: placeAddress,
-          });
-
-          // Post to backend API
-          adminFetch("/api/admin/settings", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              address: placeAddress,
-              deliveryConfig: {
-                address: placeAddress,
-                mapLocation: placeAddress,
-                mapEmbedUrl: mapUrl,
-              },
-            }),
-          }).catch(() => {});
-
-          setLocatingStatus(`Saved: ${placeAddress.slice(0, 40)}…`);
-          toast.success("Business location updated to your current location!");
-          setTimeout(() => setLocatingStatus(null), 5000);
-        } catch (err) {
-          console.error("Location handling error:", err);
-          setLocatingStatus("Could not complete location lookup");
-          setTimeout(() => setLocatingStatus(null), 3500);
-        } finally {
-          setIsLocating(false);
+        } catch (e) {
+          console.warn("Address lookup failed, keeping coordinates:", e);
         }
+
+        // Pin the map to the exact coordinates (the address text can be approximate).
+        const mapUrl = `https://maps.google.com/maps?q=${latitude},${longitude}&t=&z=17&ie=UTF8&iwloc=&output=embed`;
+        setDeliveryConfig((prev) => ({
+          ...prev,
+          address: placeAddress,
+          mapLocation: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
+          mapEmbedUrl: mapUrl,
+          visitUsLocation: placeAddress.split(",")[0] || placeAddress,
+        }));
+        setForm((prev: Record<string, unknown>) => ({ ...prev, address: placeAddress }));
+
+        // Not published yet: the admin reviews it and presses Save, which updates every device.
+        setLocatingStatus(
+          `Filled in (±${meters} m): ${placeAddress.slice(0, 60)}${placeAddress.length > 60 ? "…" : ""} — review and press Save.`,
+        );
+        if (meters > 200) {
+          toast.warning(
+            `Location is only accurate to about ±${meters} m (this device may not have GPS). Check the map preview, or type the address, before saving.`,
+            { duration: 9000 },
+          );
+        } else {
+          toast.success(
+            `Location found (±${meters} m). Check the map preview, then press Save to publish it.`,
+          );
+        }
+      } finally {
+        setIsLocating(false);
+      }
+    };
+
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        if (!best || pos.coords.accuracy < best.coords.accuracy) best = pos;
+        setLocatingStatus(`Improving accuracy… currently ±${Math.round(best.coords.accuracy)} m`);
+        if (best.coords.accuracy <= 25) void finish();
       },
       (err) => {
+        if (best) {
+          void finish();
+          return;
+        }
+        finished = true;
+        navigator.geolocation.clearWatch(watchId);
+        clearTimeout(timer);
         setIsLocating(false);
-        setLocatingStatus(`GPS notice: ${err.message || "Permission not granted"}`);
-        setTimeout(() => setLocatingStatus(null), 4000);
+        setLocatingStatus(
+          err.code === err.PERMISSION_DENIED
+            ? "Location permission was denied. Allow it in the browser settings and try again."
+            : `Could not get your location: ${err.message}`,
+        );
+        setTimeout(() => setLocatingStatus(null), 6000);
       },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
     );
+    const timer = setTimeout(() => void finish(), 20000);
   };
 
   const { data } = useQuery({

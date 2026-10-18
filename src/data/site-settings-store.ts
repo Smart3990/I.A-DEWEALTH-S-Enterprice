@@ -295,41 +295,45 @@ export function useCurrentSiteSettings(): [UnifiedSettings, (data: Record<string
   return [settings, update];
 }
 
-export async function saveSuperDealsDuration(hours: number, minutes: number, seconds: number) {
-  const h = Math.max(0, Math.min(99, Math.floor(hours || 0)));
+/**
+ * Starts a SuperDeals promo that ends after the given duration. The server records the
+ * end time, so every device shows the same countdown. Resolves true when saved.
+ */
+export async function saveSuperDealsDuration(
+  hours: number,
+  minutes: number,
+  seconds: number,
+): Promise<boolean> {
+  const h = Math.max(0, Math.min(999, Math.floor(hours || 0)));
   const m = Math.max(0, Math.min(59, Math.floor(minutes || 0)));
   const s = Math.max(0, Math.min(59, Math.floor(seconds || 0)));
-
-  saveUnifiedSettings({
-    superdealsHours: h,
-    superdealsMinutes: m,
-    superdealsSeconds: s,
-    superdeals_hours: h,
-    superdeals_minutes: m,
-    superdeals_seconds: s,
-  });
-
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(
-      new CustomEvent(SUPERDEALS_EVENT_KEY, {
-        detail: { hours: h, minutes: m, seconds: s },
+  const ok = await sendAdminChange(
+    "/api/admin/settings",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        superdeals_action: "start",
+        superdeals_hours: h,
+        superdeals_minutes: m,
+        superdeals_seconds: s,
       }),
-    );
-
-    await sendAdminChange(
-      "/api/admin/settings",
-      {
-        method: "POST",
-        body: JSON.stringify({
-          superdeals_hours: h,
-          superdeals_minutes: m,
-          superdeals_seconds: s,
-          superdealsHours: h,
-          superdealsMinutes: m,
-          superdealsSeconds: s,
-        }),
-      },
-      "SuperDeals timer was not saved to the database",
+    },
+    "SuperDeals timer was not saved",
+  );
+  if (ok) {
+    saveUnifiedSettings({ superdealsHours: h, superdealsMinutes: m, superdealsSeconds: s });
+    window.dispatchEvent(
+      new CustomEvent(SUPERDEALS_EVENT_KEY, { detail: { hours: h, minutes: m, seconds: s } }),
     );
   }
+  return ok;
+}
+
+/** Ends the running SuperDeals promo now on every device. Resolves true when saved. */
+export async function stopSuperDeals(): Promise<boolean> {
+  return sendAdminChange(
+    "/api/admin/settings",
+    { method: "POST", body: JSON.stringify({ superdeals_action: "stop" }) },
+    "Could not end the SuperDeals promo",
+  );
 }

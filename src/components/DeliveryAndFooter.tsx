@@ -17,27 +17,28 @@ export function SiteFooter() {
   const isHomePage = pathname === "/" || pathname === "";
 
   const activeSettings = useMemo(() => {
+    // Server values (useSite, loaded from the database) win over this browser's copy.
     return {
       ...defaultSettings,
-      ...siteSettings,
       ...settings,
-      email: settings.email || siteSettings.email || "sales@iadewealth.com",
-      phone: settings.phone || siteSettings.phone || "+233 55 552 6233",
+      ...siteSettings,
+      email: siteSettings.email || settings.email || "sales@iadewealth.com",
+      phone: siteSettings.phone || settings.phone || "+233 55 552 6233",
       address:
-        settings.address ||
         siteSettings.address ||
+        settings.address ||
         "Circle Tip Toe Lane, Opposite Vodafone Building, Accra, Ghana",
-      facebook: settings.facebook || siteSettings.facebook || DEFAULT_SOCIAL_REDIRECT,
-      instagram: settings.instagram || siteSettings.instagram || DEFAULT_SOCIAL_REDIRECT,
-      tiktok: settings.tiktok || siteSettings.tiktok || DEFAULT_SOCIAL_REDIRECT,
-      xUrl: settings.xUrl || settings.x_url || siteSettings.xUrl || DEFAULT_SOCIAL_REDIRECT,
-      youtube: settings.youtube || siteSettings.youtube || DEFAULT_SOCIAL_REDIRECT,
+      facebook: siteSettings.facebook || settings.facebook || DEFAULT_SOCIAL_REDIRECT,
+      instagram: siteSettings.instagram || settings.instagram || DEFAULT_SOCIAL_REDIRECT,
+      tiktok: siteSettings.tiktok || settings.tiktok || DEFAULT_SOCIAL_REDIRECT,
+      xUrl: siteSettings.xUrl || settings.xUrl || settings.x_url || DEFAULT_SOCIAL_REDIRECT,
+      youtube: siteSettings.youtube || settings.youtube || DEFAULT_SOCIAL_REDIRECT,
       footerDescription:
-        settings.footerDescription ||
         siteSettings.footerDescription ||
+        settings.footerDescription ||
         defaultSettings.footerDescription,
       copyrightText:
-        settings.copyrightText || siteSettings.copyrightText || defaultSettings.copyrightText,
+        siteSettings.copyrightText || settings.copyrightText || defaultSettings.copyrightText,
     };
   }, [settings, siteSettings]);
 

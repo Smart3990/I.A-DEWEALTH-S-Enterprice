@@ -23,6 +23,7 @@ import { OfflineIndicator } from "@/components/pwa/OfflineIndicator";
 import { PWAInstallModal } from "@/components/pwa/PWAInstallModal";
 import { reportRuntimeError } from "../lib/error-reporting";
 import { recordPageView } from "@/data/analytics-store";
+import { setWhatsappNumber } from "@/data/products";
 import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
@@ -221,6 +222,10 @@ function StorefrontShell() {
     document.addEventListener("error", onError, true);
     return () => document.removeEventListener("error", onError, true);
   }, []);
+
+  // Every WhatsApp link (hero, product cards, cars, header) uses the number saved in admin
+  // Settings. Set during render so server HTML and the browser agree.
+  setWhatsappNumber(data?.settings?.whatsappNumber ?? "");
 
   const site = useMemo(
     () => ({

@@ -5,47 +5,32 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { discountOf } from "@/data/catalog";
 import { useProducts } from "@/data/use-catalog";
 import { useSite } from "@/data/site";
-import { useCurrentSiteSettings } from "@/data/site-settings-store";
 
-function Countdown() {
-  const [settings] = useCurrentSiteSettings();
-
-  const totalConfiguredSeconds = useMemo(() => {
-    const h = settings.superdealsHours !== undefined ? Number(settings.superdealsHours) : 8;
-    const m = settings.superdealsMinutes !== undefined ? Number(settings.superdealsMinutes) : 29;
-    const s = settings.superdealsSeconds !== undefined ? Number(settings.superdealsSeconds) : 33;
-    return Math.max(1, h * 3600 + m * 60 + s);
-  }, [settings.superdealsHours, settings.superdealsMinutes, settings.superdealsSeconds]);
-
-  // On page restart (fresh load), resets to the admin set time
-  const [left, setLeft] = useState(totalConfiguredSeconds);
-
+/**
+ * Seconds left until the promo end time saved by the admin (same moment on every device).
+ * null before mount (keeps server and client markup identical) or when no promo is set.
+ */
+function useSecondsLeft(endsAt: string | null | undefined): number | null {
+  const [now, setNow] = useState<number | null>(null);
   useEffect(() => {
-    setLeft(totalConfiguredSeconds);
-  }, [totalConfiguredSeconds]);
-
-  useEffect(() => {
-    const t = setInterval(() => setLeft((v) => (v > 0 ? v - 1 : 0)), 1000);
+    setNow(Date.now());
+    const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
+  const end = endsAt ? new Date(endsAt).getTime() : NaN;
+  if (now === null || Number.isNaN(end)) return null;
+  return Math.max(0, Math.floor((end - now) / 1000));
+}
 
+function Countdown({ left }: { left: number }) {
   const pad = (n: number) => String(n).padStart(2, "0");
   return (
-    <div
-      suppressHydrationWarning
-      className="flex items-center gap-1 font-mono text-[10px] sm:text-xs font-bold text-primary-foreground"
-    >
-      <span suppressHydrationWarning className="rounded bg-nav px-1 sm:px-1.5 py-0.5">
-        {pad(Math.floor(left / 3600))}
-      </span>
-      :
-      <span suppressHydrationWarning className="rounded bg-nav px-1 sm:px-1.5 py-0.5">
+    <div className="flex items-center gap-1 font-mono text-[10px] sm:text-xs font-bold text-primary-foreground">
+      <span className="rounded bg-nav px-1 sm:px-1.5 py-0.5">{pad(Math.floor(left / 3600))}</span>:
+      <span className="rounded bg-nav px-1 sm:px-1.5 py-0.5">
         {pad(Math.floor((left % 3600) / 60))}
       </span>
-      :
-      <span suppressHydrationWarning className="rounded bg-nav px-1 sm:px-1.5 py-0.5">
-        {pad(left % 60)}
-      </span>
+      :<span className="rounded bg-nav px-1 sm:px-1.5 py-0.5">{pad(left % 60)}</span>
     </div>
   );
 }
@@ -53,7 +38,8 @@ function Countdown() {
 export function SuperDeals() {
   const { addToCart } = useStore();
   const products = useProducts();
-  const { sections } = useSite();
+  const { sections, settings } = useSite();
+  const secondsLeft = useSecondsLeft(settings.superdealsEndsAt);
   const section = sections.find((s) => s.key === "deals");
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -89,7 +75,8 @@ export function SuperDeals() {
     return combined.slice(0, limit);
   }, [products, section?.itemLimit]);
 
-  if (!deals.length) return null;
+  // The promo is over: hide the section on every device until the admin starts a new one.
+  if (!deals.length || secondsLeft === 0) return null;
 
   return (
     <section
@@ -115,12 +102,14 @@ export function SuperDeals() {
             </div>
 
             <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-3">
-              <div className="flex items-center gap-1 sm:gap-1.5 rounded-lg sm:rounded-xl bg-nav/30 px-2 sm:px-3 py-0.5 sm:py-1 backdrop-blur-xs">
-                <span className="text-[9px] sm:text-xs font-semibold text-primary-foreground">
-                  Ends:
-                </span>
-                <Countdown />
-              </div>
+              {secondsLeft !== null && secondsLeft > 0 && (
+                <div className="flex items-center gap-1 sm:gap-1.5 rounded-lg sm:rounded-xl bg-nav/30 px-2 sm:px-3 py-0.5 sm:py-1 backdrop-blur-xs">
+                  <span className="text-[9px] sm:text-xs font-semibold text-primary-foreground">
+                    Ends:
+                  </span>
+                  <Countdown left={secondsLeft} />
+                </div>
+              )}
 
               {/* Desktop single-row scroll controls */}
               <div className="hidden sm:flex items-center gap-1.5">

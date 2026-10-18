@@ -243,27 +243,32 @@ export const Route = createFileRoute("/api/admin/settings")({
               body.maxQtyPerProduct ??
               existingHubConfig.maxQtyPerProduct ??
               20,
-            superdealsHours:
-              body.superdeals_hours !== undefined
-                ? Number(body.superdeals_hours)
-                : body.superdealsHours !== undefined
-                  ? Number(body.superdealsHours)
-                  : (existingHubConfig.superdealsHours ?? 8),
-            superdealsMinutes:
-              body.superdeals_minutes !== undefined
-                ? Number(body.superdeals_minutes)
-                : body.superdealsMinutes !== undefined
-                  ? Number(body.superdealsMinutes)
-                  : (existingHubConfig.superdealsMinutes ?? 29),
-            superdealsSeconds:
-              body.superdeals_seconds !== undefined
-                ? Number(body.superdeals_seconds)
-                : body.superdealsSeconds !== undefined
-                  ? Number(body.superdealsSeconds)
-                  : (existingHubConfig.superdealsSeconds ?? 33),
+            // The SuperDeals timer changes only through an explicit start/stop from the dashboard
+            // (see below), so other forms re-sending old timer fields cannot reset it.
+            superdealsHours: existingHubConfig.superdealsHours ?? 8,
+            superdealsMinutes: existingHubConfig.superdealsMinutes ?? 29,
+            superdealsSeconds: existingHubConfig.superdealsSeconds ?? 33,
+            superdealsEndsAt: existingHubConfig.superdealsEndsAt ?? null,
           };
 
-          await supabaseAdmin.from("banners").upsert({
+          if (body.superdeals_action === "start") {
+            const h = Math.max(0, Math.min(999, Math.floor(Number(body.superdeals_hours) || 0)));
+            const m = Math.max(0, Math.min(59, Math.floor(Number(body.superdeals_minutes) || 0)));
+            const sec = Math.max(0, Math.min(59, Math.floor(Number(body.superdeals_seconds) || 0)));
+            const total = h * 3600 + m * 60 + sec;
+            if (total <= 0) {
+              return Response.json({ error: "Set a countdown longer than zero." }, { status: 400 });
+            }
+            hubPayload.superdealsHours = h;
+            hubPayload.superdealsMinutes = m;
+            hubPayload.superdealsSeconds = sec;
+            // Absolute end time from the server clock: every device counts down to the same moment.
+            hubPayload.superdealsEndsAt = new Date(Date.now() + total * 1000).toISOString();
+          } else if (body.superdeals_action === "stop") {
+            hubPayload.superdealsEndsAt = new Date().toISOString();
+          }
+
+          const { error: hubError } = await supabaseAdmin.from("banners").upsert({
             id: SITE_CONFIG_BANNER_ID,
             title: "site_config",
             subtitle: JSON.stringify(hubPayload),
@@ -277,7 +282,16 @@ export const Route = createFileRoute("/api/admin/settings")({
             sort_order: 0,
           });
 
-          return Response.json({ success: true });
+          if (hubError) {
+            return Response.json(
+              {
+                error: `Store settings saved, but delivery/promo settings were not: ${hubError.message}`,
+              },
+              { status: 500 },
+            );
+          }
+
+          return Response.json({ success: true, hubConfig: hubPayload });
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);
           console.error("[API Settings POST Exception]:", err);

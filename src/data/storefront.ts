@@ -31,6 +31,8 @@ export type SiteSettings = {
   superdealsHours?: number;
   superdealsMinutes?: number;
   superdealsSeconds?: number;
+  /** ISO end time of the running SuperDeals promo (server clock); null when none. */
+  superdealsEndsAt?: string | null;
 };
 
 export type HomeSection = {
@@ -207,6 +209,7 @@ export function mapSettings(row: any, extendedConfig?: Record<string, any>): Sit
         : ext.superdeals_seconds !== undefined
           ? Number(ext.superdeals_seconds)
           : defaultSettings.superdealsSeconds,
+    superdealsEndsAt: typeof ext.superdealsEndsAt === "string" ? ext.superdealsEndsAt : null,
   };
 }
 
