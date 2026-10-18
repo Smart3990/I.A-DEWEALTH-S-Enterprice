@@ -37,6 +37,7 @@ import {
 import { upsertProduct, deleteProduct } from "@/data/products-store";
 import { toast } from "sonner";
 import { cedi } from "@/components/store";
+import { adminFetch, readApiError } from "@/lib/admin-fetch";
 
 export function generateProductSlug(rawTitle: string): string {
   return rawTitle
@@ -389,23 +390,6 @@ export function ProductEditorModal({
       const effectiveImages =
         images.filter(Boolean).length > 0 ? images.filter(Boolean) : [effectiveImage];
 
-      // If product ID changed, remove the old product entry
-      if (product && product.id && product.id.trim() !== finalId) {
-        deleteProduct(product.id.trim());
-        try {
-          await fetch(`/api/admin/products?id=${encodeURIComponent(product.id.trim())}`, {
-            method: "DELETE",
-          });
-        } catch {
-          // ignore
-        }
-        try {
-          await supabase.from("products").delete().eq("id", product.id.trim());
-        } catch {
-          // ignore
-        }
-      }
-
       // 1. Immediately persist to local unified products store
       upsertProduct({
         id: finalId,
@@ -484,59 +468,37 @@ export function ProductEditorModal({
         is_clearance: isClearance,
       };
 
+      // Only the database makes a product visible on other devices, so a failed
+      // save must be reported rather than treated as success.
+      let apiRes: Response;
       try {
-        const apiRes = await fetch("/api/admin/products", {
+        apiRes = await adminFetch("/api/admin/products", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(productPayload),
         });
+      } catch {
+        throw new Error(
+          "Could not reach the server. The product is saved on this device only — check your connection and save again.",
+        );
+      }
+      if (!apiRes.ok) {
+        const reason = await readApiError(apiRes);
+        throw new Error(
+          `Not saved to the database, so other devices will not see it yet. Reason: ${reason}`,
+        );
+      }
 
-        if (!apiRes.ok) {
-          const apiErr = await apiRes.json().catch(() => ({}));
-          throw new Error(apiErr.error || `Server returned ${apiRes.status}`);
-        }
+      const apiData = await apiRes.json().catch(() => ({}));
+      if (apiData.product) {
+        // Keep local store strictly in sync with authoritative server data
+        upsertProduct(apiData.product);
+      }
 
-        const apiData = await apiRes.json().catch(() => ({}));
-        if (apiData.product) {
-          // Keep local store strictly in sync with authoritative server data
-          upsertProduct(apiData.product);
-        }
-      } catch (dbErr) {
-        console.error("Product cloud save error:", dbErr);
-        // Direct client fallback attempt
-        try {
-          await supabase.from("products").upsert({
-            id: finalId,
-            title: title.trim(),
-            slug: generatedSlug,
-            category_id: categoryId.trim() || null,
-            price: finalPrice,
-            original_price: typeof originalPrice === "number" ? originalPrice : finalPrice,
-            stock: finalStock,
-            badge: badge.trim(),
-            rating: finalRating,
-            reviews_count: finalReviews,
-            image: effectiveImage,
-            images: effectiveImages,
-            short_description: shortDescription.trim(),
-            description: description.trim(),
-            is_active: isActive,
-            is_super_deal: isSuperDeal,
-            is_featured: isFeatured,
-            is_bestseller: isBestseller,
-            is_new: isNewArrival,
-            is_top_pick: isTopPick,
-            is_clearance: isClearance,
-            specifications: {
-              brand: specBrand.trim(),
-              seller: specSeller.trim() || "IA Dewealth Official Store",
-              condition: specCondition.trim() || "Brand New",
-            },
-            updated_at: new Date().toISOString(),
-          });
-        } catch {
-          // continue
-        }
+      // The ID/SKU was changed: remove the old entry only now that the new one is saved,
+      // so a failed save never loses the product. deleteProduct reports server failures.
+      if (product?.id && product.id.trim() !== finalId) {
+        deleteProduct(product.id.trim());
       }
 
       qc.invalidateQueries({ queryKey: ["admin", "products-catalog"] });
@@ -547,7 +509,6 @@ export function ProductEditorModal({
         isNew ? `Created new product: ${title}` : `Updated product card: ${title} (${finalId})`,
       );
 
-      toast.success("✓ Product saved and synchronized across all devices!");
       onSaved();
       onClose();
     } catch (err) {

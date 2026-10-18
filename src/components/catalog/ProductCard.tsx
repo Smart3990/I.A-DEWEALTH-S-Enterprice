@@ -11,6 +11,7 @@ export function CatalogProductCard({ product }: { product: CatalogProduct }) {
   const isVehicle = ancestorsOf(product.categoryId).some(
     (category) => category.id === "cars-vehicles",
   );
+  const soldOut = product.availability === "Out of Stock" || product.stock === 0;
 
   return (
     <article className="group relative flex flex-col justify-between rounded-xl sm:rounded-2xl border border-border bg-card p-2 sm:p-3 md:p-4 shadow-xs transition hover:shadow-md">
@@ -52,7 +53,7 @@ export function CatalogProductCard({ product }: { product: CatalogProduct }) {
             loading="lazy"
             onError={(e) => {
               e.currentTarget.onerror = null;
-              e.currentTarget.src = "/placeholder.svg";
+              e.currentTarget.src = "/assets/product-placeholder.svg";
             }}
             className="h-full w-full object-cover object-center transition duration-300 group-hover:scale-105"
           />
@@ -104,14 +105,17 @@ export function CatalogProductCard({ product }: { product: CatalogProduct }) {
           ) : (
             <button
               type="button"
+              disabled={soldOut}
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                addToCart(product.id, product.name, product.price, product.image);
+                addToCart(product.id, product.name, product.price, product.image, 1, {
+                  stock: soldOut ? 0 : product.stock,
+                });
               }}
-              className="relative z-20 flex w-full md:w-auto shrink-0 items-center justify-center whitespace-nowrap rounded-lg bg-primary px-2.5 py-1.5 md:py-2 text-center text-[10px] sm:text-xs font-bold text-primary-foreground shadow-2xs transition hover:bg-primary-dark active:scale-95"
+              className="relative z-20 flex w-full md:w-auto shrink-0 items-center justify-center whitespace-nowrap rounded-lg bg-primary px-2.5 py-1.5 md:py-2 text-center text-[10px] sm:text-xs font-bold text-primary-foreground shadow-2xs transition hover:bg-primary-dark active:scale-95 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground disabled:active:scale-100"
             >
-              Add to Cart
+              {soldOut ? "Out of stock" : "Add to Cart"}
             </button>
           )}
         </div>

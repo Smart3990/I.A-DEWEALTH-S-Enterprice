@@ -182,7 +182,7 @@ export function SuperDeals() {
                       loading="lazy"
                       onError={(e) => {
                         e.currentTarget.onerror = null;
-                        e.currentTarget.src = "/placeholder.svg";
+                        e.currentTarget.src = "/assets/product-placeholder.svg";
                       }}
                       className="h-full w-full object-cover object-center transition duration-300 group-hover:scale-105"
                     />
@@ -214,14 +214,19 @@ export function SuperDeals() {
 
                   <button
                     type="button"
+                    disabled={d.availability === "Out of Stock" || d.stock === 0}
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      addToCart(d.id, d.name, d.price, d.image);
+                      addToCart(d.id, d.name, d.price, d.image, 1, {
+                        stock: d.availability === "Out of Stock" ? 0 : d.stock,
+                      });
                     }}
-                    className="w-full shrink-0 whitespace-nowrap rounded sm:rounded-lg bg-primary py-1 sm:py-1.5 text-[9px] sm:text-xs font-bold text-primary-foreground shadow-2xs transition hover:bg-primary-dark active:scale-95 cursor-pointer"
+                    className="w-full shrink-0 whitespace-nowrap rounded sm:rounded-lg bg-primary py-1 sm:py-1.5 text-[9px] sm:text-xs font-bold text-primary-foreground shadow-2xs transition hover:bg-primary-dark active:scale-95 cursor-pointer disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
                   >
-                    Add to Cart
+                    {d.availability === "Out of Stock" || d.stock === 0
+                      ? "Sold out"
+                      : "Add to Cart"}
                   </button>
                 </div>
               </article>

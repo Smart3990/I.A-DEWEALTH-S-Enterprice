@@ -4,6 +4,19 @@ import { usePWAInstall } from "@/hooks/usePWAInstall";
 import { useSite } from "@/data/site";
 import { useCurrentSiteSettings } from "@/data/site-settings-store";
 
+const AUTO_OPEN_DELAY_MS = 30_000;
+const DISMISSED_AT_KEY = "pwa_install_modal_dismissed_at";
+const SNOOZE_MS = 14 * 24 * 60 * 60 * 1000;
+
+function wasDismissedRecently(): boolean {
+  try {
+    const at = Number(localStorage.getItem(DISMISSED_AT_KEY));
+    return Number.isFinite(at) && at > 0 && Date.now() - at < SNOOZE_MS;
+  } catch {
+    return false;
+  }
+}
+
 export function PWAInstallModal() {
   const [isOpen, setIsOpen] = useState(false);
   const [showIOSSteps, setShowIOSSteps] = useState(false);
@@ -24,18 +37,18 @@ export function PWAInstallModal() {
   useEffect(() => {
     setMounted(true);
 
-    // Check if user previously dismissed in this session
-    const isDismissed = sessionStorage.getItem("pwa_install_modal_dismissed");
-
-    // If already installed or already dismissed, do not auto open
-    if (isInstalled || isDismissed === "true") {
+    // If already installed or dismissed recently, do not auto open
+    if (isInstalled || wasDismissedRecently()) {
       return;
     }
 
-    // Friendly 1.2s delay so page renders smoothly and beforeinstallprompt has fired
+    // A full-screen prompt on arrival blocks shopping, so only offer it to visitors who have
+    // stayed a while, and never on top of the cart.
     const timer = setTimeout(() => {
-      setIsOpen(true);
-    }, 1200);
+      if (!window.location.pathname.startsWith("/cart") && !wasDismissedRecently()) {
+        setIsOpen(true);
+      }
+    }, AUTO_OPEN_DELAY_MS);
 
     return () => clearTimeout(timer);
   }, [isInstalled]);
@@ -58,7 +71,11 @@ export function PWAInstallModal() {
   }
 
   const handleDismiss = () => {
-    sessionStorage.setItem("pwa_install_modal_dismissed", "true");
+    try {
+      localStorage.setItem(DISMISSED_AT_KEY, String(Date.now()));
+    } catch {
+      // storage blocked: the prompt may show again next visit
+    }
     setIsOpen(false);
     setShowIOSSteps(false);
   };

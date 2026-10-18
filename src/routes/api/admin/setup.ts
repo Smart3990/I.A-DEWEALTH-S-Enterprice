@@ -43,10 +43,17 @@ export const Route = createFileRoute("/api/admin/setup")({
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
           // Guard: Only allow bootstrap if NO roles exist yet
-          const { count } = await supabaseAdmin
+          const { count, error: countError } = await supabaseAdmin
             .from("user_roles")
             .select("*", { count: "exact", head: true });
 
+          // If we cannot tell whether an admin exists, refuse rather than risk a second bootstrap.
+          if (countError) {
+            return Response.json(
+              { error: `Could not check existing administrators: ${countError.message}` },
+              { status: 503 },
+            );
+          }
           if ((count ?? 0) > 0) {
             return Response.json(
               { error: "Administrator setup has already been completed. Please sign in." },
@@ -83,7 +90,7 @@ export const Route = createFileRoute("/api/admin/setup")({
           }
 
           // Create or update profile
-          await supabaseAdmin.from("profiles").upsert(
+          const { error: profileErr } = await supabaseAdmin.from("profiles").upsert(
             {
               id: userId,
               name,
@@ -92,6 +99,9 @@ export const Route = createFileRoute("/api/admin/setup")({
             },
             { onConflict: "id" },
           );
+          if (profileErr) {
+            return Response.json({ error: profileErr.message }, { status: 500 });
+          }
 
           // Assign super_admin role
           const { error: roleErr } = await supabaseAdmin.from("user_roles").upsert(

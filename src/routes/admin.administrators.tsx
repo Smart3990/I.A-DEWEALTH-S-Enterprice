@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Plus, Trash2, Pencil } from "lucide-react";
+import { toast } from "sonner";
 import { Btn, Modal, PageHead, Panel } from "@/components/admin/kit";
 import { SuperAdminOnly } from "@/components/admin/guard";
 import {
@@ -31,6 +32,18 @@ type Draft = {
 
 const blank: Draft = { name: "", email: "", password: "", role: "admin", isActive: true };
 
+/** Server functions surface zod failures as a JSON array; show the first message instead. */
+function friendlyError(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  try {
+    const parsed = JSON.parse(msg);
+    if (Array.isArray(parsed) && parsed[0]?.message) return String(parsed[0].message);
+  } catch {
+    // not JSON
+  }
+  return msg;
+}
+
 function Administrators() {
   const qc = useQueryClient();
   const list = useServerFn(listAdministrators);
@@ -39,7 +52,11 @@ function Administrators() {
   const del = useServerFn(deleteAdministrator);
   const [draft, setDraft] = useState<Draft | null>(null);
 
-  const { data: rows = [], isLoading } = useQuery({
+  const {
+    data: rows = [],
+    isLoading,
+    error: listError,
+  } = useQuery({
     queryKey: ["admin", "administrators"],
     queryFn: () => list(),
   });
@@ -62,15 +79,23 @@ function Administrators() {
         });
       }
     },
-    onSuccess: () => {
+    onSuccess: (_result, d) => {
       qc.invalidateQueries({ queryKey: ["admin", "administrators"] });
       setDraft(null);
+      toast.success(
+        d.id ? `Saved changes for ${d.name}` : `${d.name} can now sign in as an administrator`,
+      );
     },
+    onError: (err) => toast.error(friendlyError(err)),
   });
 
   const remove = useMutation({
     mutationFn: (id: string) => del({ data: { id } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "administrators"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "administrators"] });
+      toast.success("Administrator removed");
+    },
+    onError: (err) => toast.error(friendlyError(err)),
   });
 
   const input =
@@ -90,6 +115,10 @@ function Administrators() {
       <Panel>
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : listError ? (
+          <p className="text-sm text-destructive">
+            Could not load administrators: {friendlyError(listError)}
+          </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[560px] text-left text-sm">
@@ -128,14 +157,18 @@ function Administrators() {
                         >
                           <Pencil className="h-3.5 w-3.5" /> Edit
                         </Btn>
-                        <Btn
-                          tone="danger"
-                          onClick={() => {
-                            if (confirm("Remove this administrator?")) remove.mutate(r.id);
-                          }}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Btn>
+                        {!r.isSelf && (
+                          <Btn
+                            tone="danger"
+                            disabled={remove.isPending}
+                            onClick={() => {
+                              if (confirm(`Remove ${r.name || r.email} as an administrator?`))
+                                remove.mutate(r.id);
+                            }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Btn>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -152,7 +185,7 @@ function Administrators() {
           </div>
         )}
         {remove.error && (
-          <p className="mt-3 text-sm text-destructive">{(remove.error as Error).message}</p>
+          <p className="mt-3 text-sm text-destructive">{friendlyError(remove.error)}</p>
         )}
       </Panel>
 
@@ -230,9 +263,7 @@ function Administrators() {
                 Active
               </label>
             )}
-            {save.error && (
-              <p className="text-sm text-destructive">{(save.error as Error).message}</p>
-            )}
+            {save.error && <p className="text-sm text-destructive">{friendlyError(save.error)}</p>}
             <div className="flex justify-end gap-2">
               <Btn tone="ghost" onClick={() => setDraft(null)}>
                 Cancel

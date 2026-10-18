@@ -156,3 +156,16 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* Cart badge "pop" when an item is added */
+@keyframes cart-pop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.45);
+  }
+  100% {
+    transform: scale(1);
+  }
+}

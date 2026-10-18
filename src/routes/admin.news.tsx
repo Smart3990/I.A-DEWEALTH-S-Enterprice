@@ -27,7 +27,7 @@ import {
   DEFAULT_NEWS_ITEMS,
 } from "@/data/news-ticker-store";
 import { useAdminSession, logActivity } from "@/lib/admin-auth";
-import { canAccessModule } from "@/data/permissions-store";
+import { canPerformAction } from "@/data/permissions-store";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/news")({
@@ -47,7 +47,7 @@ const COLOR_PRESETS = [
 
 function AdminNewsPage() {
   const { role } = useAdminSession();
-  const canEdit = canAccessModule(role, "news", "canEdit");
+  const canEdit = canPerformAction(role, "news", "canEdit");
 
   const [storedConfig, setStoredConfig] = useNewsTicker();
   const [config, setConfig] = useState<NewsTickerConfig>(storedConfig);

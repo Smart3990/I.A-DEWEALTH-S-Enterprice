@@ -1,16 +1,27 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { Link } from "@tanstack/react-router";
 import { Minus, Plus, ShoppingCart, Trash2 } from "lucide-react";
 import { cedi, useStore } from "./store";
 
 export function MiniCart({ count }: { count: number }) {
-  const { cart, cartOpen, toggleCart, closeCart, setQty, removeLine, total } = useStore();
-  const wrapRef = useRef<HTMLDivElement>(null);
+  const {
+    cart,
+    cartOpen,
+    toggleCart,
+    closeCart,
+    setQty,
+    removeLine,
+    total,
+    addedPulse,
+    maxQtyFor,
+  } = useStore();
 
   useEffect(() => {
     if (!cartOpen) return;
+    // The header renders one MiniCart for mobile and one for desktop. Treat a press inside
+    // either as "inside", otherwise the hidden copy closes the cart before +/- clicks land.
     const onDown = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) closeCart();
+      if (!(e.target as Element | null)?.closest?.("[data-minicart]")) closeCart();
     };
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && closeCart();
     document.addEventListener("mousedown", onDown);
@@ -22,16 +33,21 @@ export function MiniCart({ count }: { count: number }) {
   }, [cartOpen, closeCart]);
 
   return (
-    <div ref={wrapRef} className="relative">
+    <div data-minicart className="relative">
       <button
-        aria-label="Cart"
+        aria-label={`Cart, ${count} ${count === 1 ? "item" : "items"}`}
         aria-expanded={cartOpen}
         onClick={toggleCart}
         className="relative p-2 transition hover:opacity-80"
       >
         <ShoppingCart className="h-7 w-7" strokeWidth={1.75} />
-        <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-accent text-[11px] font-bold text-accent-foreground">
-          {count}
+        <span
+          key={addedPulse}
+          className={`absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-[11px] font-bold text-accent-foreground ${
+            addedPulse > 0 ? "animate-[cart-pop_0.45s_ease-out]" : ""
+          }`}
+        >
+          {count > 99 ? "99+" : count}
         </span>
       </button>
 
@@ -79,7 +95,8 @@ export function MiniCart({ count }: { count: number }) {
                       <button
                         aria-label={`Increase ${line.name}`}
                         onClick={() => setQty(line.id, line.qty + 1)}
-                        className="flex h-6 w-6 items-center justify-center rounded-md border border-border transition hover:bg-secondary"
+                        disabled={line.qty >= maxQtyFor(line)}
+                        className="flex h-6 w-6 items-center justify-center rounded-md border border-border transition hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-30"
                       >
                         <Plus className="h-3 w-3" />
                       </button>

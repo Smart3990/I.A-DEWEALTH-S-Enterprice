@@ -1,4 +1,5 @@
 import { catalogProducts, type CatalogProduct, applyCatalogSnapshot } from "./catalog";
+import { sendAdminChange } from "@/lib/admin-fetch";
 
 export interface AdminProduct extends CatalogProduct {
   category: string;
@@ -267,11 +268,11 @@ export function updateProductStock(id: string, newStock: number): void {
   saveProducts(updated);
 
   if (typeof window !== "undefined") {
-    fetch("/api/admin/products", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, stock: validStock, in_stock: validStock > 0 }),
-    }).catch(() => {});
+    void sendAdminChange(
+      "/api/admin/products",
+      { method: "POST", body: JSON.stringify({ id, stock: validStock }) },
+      "Stock change was not saved to the database",
+    );
   }
 }
 
@@ -283,11 +284,11 @@ export function updateProductCategory(id: string, newCategoryId: string): void {
   saveProducts(updated);
 
   if (typeof window !== "undefined") {
-    fetch("/api/admin/products", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, category_id: newCategoryId }),
-    }).catch(() => {});
+    void sendAdminChange(
+      "/api/admin/products",
+      { method: "POST", body: JSON.stringify({ id, category_id: newCategoryId }) },
+      "Category change was not saved to the database",
+    );
   }
 }
 
@@ -305,11 +306,16 @@ export function deleteMultipleProducts(ids: string[]): void {
   saveProducts(updated);
 
   if (typeof window !== "undefined") {
-    fetch("/api/admin/products", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids }),
-    }).catch(() => {});
+    void sendAdminChange(
+      "/api/admin/products",
+      { method: "DELETE", body: JSON.stringify({ ids }) },
+      "Delete was not saved to the database",
+    ).then((ok) => {
+      // The product still exists on the server, so stop hiding it on this device.
+      if (ok) return;
+      ids.forEach((id) => unmarkProductDeleted(id));
+      window.dispatchEvent(new Event(EVENT_KEY));
+    });
   }
 }
 
@@ -466,11 +472,11 @@ export function clearAllProductsPermanently(): void {
     window.dispatchEvent(new CustomEvent(EVENT_KEY, { detail: { products: [] } }));
 
     // 6. Dispatch API deletion request in background
-    fetch("/api/admin/products?id=all", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: "all", all: true }),
-    }).catch(() => {});
+    void sendAdminChange(
+      "/api/admin/products?id=all",
+      { method: "DELETE", body: JSON.stringify({ id: "all", all: true }) },
+      "Clearing products was not saved to the database",
+    );
   } catch (e) {
     console.error("Failed to clear all products permanently:", e);
   }

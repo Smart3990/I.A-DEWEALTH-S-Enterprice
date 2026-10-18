@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, type ChangeEvent } from "react";
 import { Upload, Image as ImageIcon, X, Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { adminFetch } from "@/lib/admin-fetch";
 
 interface ImageUploadInputProps {
   value: string;
@@ -88,7 +89,7 @@ export async function uploadImageFile(file: File): Promise<string> {
 
   // 2. Primary: Upload via server endpoint /api/admin/upload (handles Cloudinary + Supabase Storage with service role)
   try {
-    const res = await fetch("/api/admin/upload", {
+    const res = await adminFetch("/api/admin/upload", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

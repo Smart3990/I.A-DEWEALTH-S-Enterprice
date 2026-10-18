@@ -4,7 +4,6 @@ import { WHATSAPP } from "@/data/products";
 import { PageBody } from "@/components/catalog/CategoryShell";
 import { cedi, useStore } from "@/components/store";
 import { useSite, whatsappLink } from "@/data/site";
-import { supabase } from "@/integrations/supabase/client";
 import { addInquiry } from "@/data/inquiries-store";
 
 export const Route = createFileRoute("/cart")({
@@ -30,7 +29,7 @@ export const Route = createFileRoute("/cart")({
 });
 
 function CartPage() {
-  const { cart, setQty, removeLine, total, count } = useStore();
+  const { cart, setQty, removeLine, total, count, maxQtyFor } = useStore();
   const { settings } = useSite();
 
   const orderText = cart.length
@@ -122,7 +121,8 @@ function CartPage() {
                         <button
                           aria-label={`Increase ${line.name}`}
                           onClick={() => setQty(line.id, line.qty + 1)}
-                          className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg border border-border transition hover:bg-secondary"
+                          disabled={line.qty >= maxQtyFor(line)}
+                          className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg border border-border transition hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-30"
                         >
                           <Plus className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                         </button>
@@ -167,18 +167,6 @@ function CartPage() {
                   } catch {
                     // silent fallback
                   }
-                  void supabase.from("inquiries").insert({
-                    item_count: cart.reduce((sum, i) => sum + i.qty, 0),
-                    items: cart.map((i) => ({
-                      id: i.id,
-                      name: i.name,
-                      qty: i.qty,
-                      price: i.price,
-                    })),
-                    note: orderText,
-                    status: "new",
-                    total,
-                  });
                 }}
                 className="mt-5 flex w-full items-center justify-center rounded-full bg-primary px-5 py-3 text-sm font-bold text-primary-foreground transition hover:bg-primary-dark"
               >

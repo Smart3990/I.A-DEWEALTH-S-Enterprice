@@ -5,6 +5,8 @@ import {
   type CatalogProduct,
   catalogProducts,
 } from "./catalog";
+import { sendAdminChange } from "@/lib/admin-fetch";
+import { toast } from "sonner";
 
 const STORAGE_KEY = "ia_admin_categories";
 const EVENT_KEY = "ia_categories_updated";
@@ -27,26 +29,38 @@ export function saveCategories(updated: Category[]) {
     window.dispatchEvent(new Event(EVENT_KEY));
 
     if (typeof window !== "undefined") {
-      // Sync each category to database
-      updated.forEach((cat) => {
-        fetch("/api/admin/categories", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            id: cat.id,
-            name: cat.name,
-            slug: cat.slug,
-            parent_id: cat.parentId,
-            description: cat.description,
-            banner_image: cat.bannerImage,
-            banner_title: cat.bannerTitle,
-            banner_subtitle: cat.bannerSubtitle,
-            banner_cta: cat.bannerCTA,
-            icon: cat.icon,
-            is_active: cat.isActive,
-            sort_order: cat.sortOrder,
-          }),
-        }).catch(() => {});
+      // Sync each category to database; report once if any did not save.
+      const sends = updated.map((cat) =>
+        sendAdminChange(
+          "/api/admin/categories",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              id: cat.id,
+              name: cat.name,
+              slug: cat.slug,
+              parent_id: cat.parentId,
+              description: cat.description,
+              banner_image: cat.bannerImage,
+              banner_title: cat.bannerTitle,
+              banner_subtitle: cat.bannerSubtitle,
+              banner_cta: cat.bannerCTA,
+              icon: cat.icon,
+              is_active: cat.isActive,
+              sort_order: cat.sortOrder,
+            }),
+          },
+          "",
+          { quiet: true },
+        ),
+      );
+      void Promise.all(sends).then((results) => {
+        const failed = results.filter((ok) => !ok).length;
+        if (failed) {
+          toast.error(
+            `${failed} categor${failed === 1 ? "y was" : "ies were"} not saved to the database. Check your connection and admin session, then save again.`,
+          );
+        }
       });
     }
   } catch (e) {
@@ -71,19 +85,22 @@ export function updateCategoryBanner(
   saveCategories(updated);
 
   if (typeof window !== "undefined" && target) {
-    fetch("/api/admin/categories", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        id,
-        banner_title: bannerPatch.bannerTitle ?? target.bannerTitle,
-        banner_subtitle: bannerPatch.bannerSubtitle ?? target.bannerSubtitle,
-        banner_image: bannerPatch.bannerImage ?? target.bannerImage,
-        banner_cta: bannerPatch.bannerCTA ?? target.bannerCTA,
-        name: bannerPatch.name ?? target.name,
-        is_active: bannerPatch.isActive ?? target.isActive,
-      }),
-    }).catch(() => {});
+    void sendAdminChange(
+      "/api/admin/categories",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          id,
+          banner_title: bannerPatch.bannerTitle ?? target.bannerTitle,
+          banner_subtitle: bannerPatch.bannerSubtitle ?? target.bannerSubtitle,
+          banner_image: bannerPatch.bannerImage ?? target.bannerImage,
+          banner_cta: bannerPatch.bannerCTA ?? target.bannerCTA,
+          name: bannerPatch.name ?? target.name,
+          is_active: bannerPatch.isActive ?? target.isActive,
+        }),
+      },
+      "Category banner was not saved to the database",
+    );
   }
 }
 

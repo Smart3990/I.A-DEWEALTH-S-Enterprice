@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { adminFetch, sendAdminChange } from "@/lib/admin-fetch";
 
 export interface ModulePermission {
   canView: boolean;
@@ -34,46 +35,77 @@ export const DEFAULT_ADMIN_PERMISSIONS: AdminPermissions = {
   activity: { canView: false },
 };
 
+// The server (/api/admin/permissions) is the source of truth and enforces these rules;
+// localStorage only caches the last copy so menus render without waiting for the request.
 const STORAGE_KEY = "ia_admin_permissions_config";
 const EVENT_KEY = "ia_admin_permissions_updated";
+
+/** Fills any missing module or flag from the defaults. Shared with the server. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function mergeAdminPermissions(parsed: any): AdminPermissions {
+  const p = parsed && typeof parsed === "object" ? parsed : {};
+  return {
+    products: { ...DEFAULT_ADMIN_PERMISSIONS.products, ...p.products },
+    categories: { ...DEFAULT_ADMIN_PERMISSIONS.categories, ...p.categories },
+    inquiries: { ...DEFAULT_ADMIN_PERMISSIONS.inquiries, ...p.inquiries },
+    reviews: { ...DEFAULT_ADMIN_PERMISSIONS.reviews, ...p.reviews },
+    banners: { ...DEFAULT_ADMIN_PERMISSIONS.banners, ...p.banners },
+    news: { ...DEFAULT_ADMIN_PERMISSIONS.news, ...p.news },
+    media: { ...DEFAULT_ADMIN_PERMISSIONS.media, ...p.media },
+    settings: { ...DEFAULT_ADMIN_PERMISSIONS.settings, ...p.settings },
+    activity: { ...DEFAULT_ADMIN_PERMISSIONS.activity, ...p.activity },
+  };
+}
 
 export function getAdminPermissions(): AdminPermissions {
   if (typeof window === "undefined") return DEFAULT_ADMIN_PERMISSIONS;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_ADMIN_PERMISSIONS));
-      return DEFAULT_ADMIN_PERMISSIONS;
-    }
-    const parsed = JSON.parse(raw);
-    return {
-      ...DEFAULT_ADMIN_PERMISSIONS,
-      ...parsed,
-      products: { ...DEFAULT_ADMIN_PERMISSIONS.products, ...parsed.products },
-      categories: { ...DEFAULT_ADMIN_PERMISSIONS.categories, ...parsed.categories },
-      inquiries: { ...DEFAULT_ADMIN_PERMISSIONS.inquiries, ...parsed.inquiries },
-      reviews: { ...DEFAULT_ADMIN_PERMISSIONS.reviews, ...parsed.reviews },
-      banners: { ...DEFAULT_ADMIN_PERMISSIONS.banners, ...parsed.banners },
-      news: { ...DEFAULT_ADMIN_PERMISSIONS.news, ...(parsed.news || {}) },
-      media: { ...DEFAULT_ADMIN_PERMISSIONS.media, ...parsed.media },
-      settings: { ...DEFAULT_ADMIN_PERMISSIONS.settings, ...parsed.settings },
-      activity: { ...DEFAULT_ADMIN_PERMISSIONS.activity, ...parsed.activity },
-    };
+    return raw ? mergeAdminPermissions(JSON.parse(raw)) : DEFAULT_ADMIN_PERMISSIONS;
   } catch {
     return DEFAULT_ADMIN_PERMISSIONS;
   }
 }
 
-export function saveAdminPermissions(next: AdminPermissions): void {
+function cacheAdminPermissions(next: AdminPermissions): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    window.dispatchEvent(new Event(EVENT_KEY));
-  } catch (e) {
-    console.error("Failed to save admin permissions:", e);
+  } catch {
+    // storage blocked: the next refresh fetches it again
   }
+  window.dispatchEvent(new Event(EVENT_KEY));
 }
 
-export function useAdminPermissions(): [AdminPermissions, (next: AdminPermissions) => void] {
+/** Loads the shared permission rules from the server into the local cache. */
+export async function refreshAdminPermissions(): Promise<AdminPermissions> {
+  try {
+    const res = await adminFetch("/api/admin/permissions");
+    if (res.ok) {
+      const next = mergeAdminPermissions((await res.json()).permissions);
+      cacheAdminPermissions(next);
+      return next;
+    }
+  } catch {
+    // keep the cached copy
+  }
+  return getAdminPermissions();
+}
+
+/** Saves the rules for every Admin account. Resolves false (with a toast) if not saved. */
+export async function saveAdminPermissions(next: AdminPermissions): Promise<boolean> {
+  const ok = await sendAdminChange(
+    "/api/admin/permissions",
+    { method: "POST", body: JSON.stringify({ permissions: next }) },
+    "Permissions were not saved",
+  );
+  if (ok) cacheAdminPermissions(next);
+  return ok;
+}
+
+export function useAdminPermissions(): [
+  AdminPermissions,
+  (next: AdminPermissions) => Promise<boolean>,
+] {
   const [perms, setPerms] = useState<AdminPermissions>(() => getAdminPermissions());
 
   useEffect(() => {
@@ -81,12 +113,14 @@ export function useAdminPermissions(): [AdminPermissions, (next: AdminPermission
       setPerms(getAdminPermissions());
     };
     window.addEventListener(EVENT_KEY, handler);
+    void refreshAdminPermissions();
     return () => window.removeEventListener(EVENT_KEY, handler);
   }, []);
 
-  const update = (next: AdminPermissions) => {
-    saveAdminPermissions(next);
-    setPerms(next);
+  const update = async (next: AdminPermissions) => {
+    const ok = await saveAdminPermissions(next);
+    if (ok) setPerms(next);
+    return ok;
   };
 
   return [perms, update];

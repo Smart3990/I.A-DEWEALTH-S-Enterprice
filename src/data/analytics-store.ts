@@ -4,6 +4,7 @@
  * by filter duration (Today, Last 7 Days, Last 30 Days, All Time).
  */
 import { useEffect, useRef, useState } from "react";
+import { adminFetch } from "@/lib/admin-fetch";
 
 export type DurationFilter = "today" | "7d" | "30d" | "all";
 
@@ -114,13 +115,25 @@ export function recordPageView(
   } catch (e) {
     console.error("Failed to record page visit:", e);
   }
+
+  // Also record it on the server so the admin dashboard sees every visitor, not just this browser.
+  fetch("/api/analytics", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(newVisit),
+    keepalive: true,
+  }).catch(() => {
+    // analytics are best-effort
+  });
 }
 
 /**
  * Computes aggregated visitor metrics based on the selected duration filter.
  */
-export function getAnalyticsData(duration: DurationFilter): AnalyticsSummary {
-  const rawVisits = getRawVisits();
+export function getAnalyticsData(
+  duration: DurationFilter,
+  rawVisits: PageVisit[] = getRawVisits(),
+): AnalyticsSummary {
   const now = Date.now();
 
   // Cutoff threshold based on duration
@@ -357,17 +370,39 @@ export function getAnalyticsData(duration: DurationFilter): AnalyticsSummary {
 export function useStoreAnalytics(duration: DurationFilter = "7d"): AnalyticsSummary {
   const [data, setData] = useState<AnalyticsSummary>(() => getAnalyticsData(duration));
   const prevDurationRef = useRef(duration);
+  // Every visitor's page views from the server; null until loaded (or if the
+  // page_views table is not set up yet), in which case this browser's log is used.
+  const serverVisits = useRef<PageVisit[] | null>(null);
 
   useEffect(() => {
+    const recompute = () =>
+      setData(getAnalyticsData(duration, serverVisits.current ?? getRawVisits()));
+
     if (prevDurationRef.current !== duration) {
       prevDurationRef.current = duration;
-      setData(getAnalyticsData(duration));
+      recompute();
     }
-    const handleUpdate = () => {
-      setData(getAnalyticsData(duration));
+
+    let alive = true;
+    const days = duration === "all" ? 400 : duration === "30d" ? 30 : 7;
+    const load = () =>
+      adminFetch(`/api/analytics?days=${days}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((body) => {
+          if (!alive || !Array.isArray(body?.visits)) return;
+          serverVisits.current = body.visits;
+          recompute();
+        })
+        .catch(() => {});
+    void load();
+    const interval = setInterval(load, 60_000);
+
+    window.addEventListener(EVENT_KEY, recompute);
+    return () => {
+      alive = false;
+      clearInterval(interval);
+      window.removeEventListener(EVENT_KEY, recompute);
     };
-    window.addEventListener(EVENT_KEY, handleUpdate);
-    return () => window.removeEventListener(EVENT_KEY, handleUpdate);
   }, [duration]);
 
   return data;

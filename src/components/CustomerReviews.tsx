@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, type FormEvent } from "react";
 import { CheckCircle2, ChevronLeft, ChevronRight, PenLine, Star, ThumbsUp, X } from "lucide-react";
 import { useApprovedReviews, submitReviewForApproval, type ReviewItem } from "@/data/reviews-store";
-import { supabase } from "@/integrations/supabase/client";
 
 export type { ReviewItem };
 
@@ -23,6 +22,7 @@ export function CustomerReviews() {
   const [recommend, setRecommend] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successToast, setSuccessToast] = useState(false);
+  const [submitError, setSubmitError] = useState("");
 
   // Auto-scroll horizontally every 3 seconds
   useEffect(() => {
@@ -87,42 +87,26 @@ export function CustomerReviews() {
     if (!formName.trim() || !formComment.trim()) return;
 
     setIsSubmitting(true);
+    setSubmitError("");
 
     try {
-      // 1. Submit for admin approval
-      submitReviewForApproval({
+      await submitReviewForApproval({
         name: formName.trim(),
         location: formLocation.trim() || "Accra, Ghana",
         rating: formRating,
         title: formTitle.trim() || "Customer Review",
         comment: formComment.trim(),
-        product: formProduct.trim() || "Purchased Gadget",
+        product: formProduct.trim(),
       });
+    } catch (err) {
+      setSubmitError(
+        err instanceof Error ? err.message : "Your review could not be sent. Please try again.",
+      );
+      setIsSubmitting(false);
+      return;
+    }
 
-      // 2. Also log to database so admin has redundancy
-      try {
-        await supabase.from("inquiries").insert({
-          item_count: 1,
-          items: [
-            {
-              type: "customer_rating_review",
-              name: formName.trim(),
-              rating: formRating,
-              product: formProduct.trim(),
-              location: formLocation.trim(),
-              title: formTitle.trim(),
-              comment: formComment.trim(),
-              status: "pending_approval",
-            },
-          ],
-          note: `New Customer Rating (${formRating} Stars) - Awaiting Admin Approval:\nName: ${formName.trim()} (${formLocation.trim()})\nProduct: ${formProduct.trim()}\nTitle: ${formTitle.trim()}\nReview: ${formComment.trim()}`,
-          status: "pending_approval",
-          total: 0,
-        });
-      } catch (err) {
-        console.warn("Could not log review to database:", err);
-      }
-    } finally {
+    {
       setIsSubmitting(false);
       setSuccessToast(true);
 
@@ -191,6 +175,14 @@ export function CustomerReviews() {
         onTouchEnd={() => setIsPaused(false)}
         className="mt-8 flex w-full gap-5 overflow-x-auto px-4 pb-5 pt-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden scroll-smooth sm:px-8 lg:px-12"
       >
+        {reviews.length === 0 && (
+          <div className="mx-auto w-full max-w-md rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center">
+            <p className="text-sm font-bold text-slate-800">No reviews yet</p>
+            <p className="mt-1 text-xs text-slate-500">
+              Bought from us? Share your experience — reviews appear here once approved.
+            </p>
+          </div>
+        )}
         {reviews.map((r) => {
           const hasLiked = helpfulLiked[r.id];
           return (
@@ -452,6 +444,15 @@ export function CustomerReviews() {
                   I recommend I.A Dewealth&apos;s Enterprise to others
                 </label>
               </div>
+
+              {submitError && (
+                <p
+                  role="alert"
+                  className="rounded-xl bg-red-50 p-3 text-xs font-medium text-red-700"
+                >
+                  {submitError}
+                </p>
+              )}
 
               {/* Submit Button */}
               <div className="pt-2">

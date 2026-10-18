@@ -23,6 +23,7 @@ import { OfflineIndicator } from "@/components/pwa/OfflineIndicator";
 import { PWAInstallModal } from "@/components/pwa/PWAInstallModal";
 import { reportRuntimeError } from "../lib/error-reporting";
 import { recordPageView } from "@/data/analytics-store";
+import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
   return (
@@ -178,6 +179,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <StorefrontShell />
+      <Toaster position="top-center" richColors closeButton duration={3500} />
     </QueryClientProvider>
   );
 }
@@ -206,10 +208,25 @@ function StorefrontShell() {
     }
   }, [pathname, isAdmin]);
 
+  // Any image that fails to load (deleted upload, bad URL) shows the product placeholder
+  // instead of a broken-image icon. Image error events don't bubble, so listen in capture.
+  useEffect(() => {
+    const placeholder = "/assets/product-placeholder.svg";
+    const onError = (e: Event) => {
+      const img = e.target;
+      if (!(img instanceof HTMLImageElement) || img.dataset["fallback"] === "1") return;
+      img.dataset["fallback"] = "1";
+      img.src = placeholder;
+    };
+    document.addEventListener("error", onError, true);
+    return () => document.removeEventListener("error", onError, true);
+  }, []);
+
   const site = useMemo(
     () => ({
       settings: data?.settings ?? defaultSettings,
       sections: data?.sections ?? [],
+      hub: data?.hub ?? {},
       banners: data?.banners ?? [],
       nav: data?.nav ?? [],
     }),

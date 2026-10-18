@@ -49,6 +49,7 @@ import {
   type BannerOption,
 } from "@/components/admin/ProductEditorModal";
 import { toast } from "sonner";
+import { adminFetch, readApiError } from "@/lib/admin-fetch";
 
 export const Route = createFileRoute("/admin/products")({
   component: ProductsAdmin,
@@ -192,7 +193,7 @@ function ProductsAdmin() {
       // 2. Fetch from /api/admin/products (authoritative cloud PostgreSQL)
       let remoteRows: Record<string, unknown>[] = [];
       try {
-        const res = await fetch("/api/admin/products");
+        const res = await adminFetch("/api/admin/products");
         if (res.ok) {
           const json = await res.json();
           if (Array.isArray(json.products) && json.products.length > 0) {
@@ -293,7 +294,7 @@ function ProductsAdmin() {
 
       // Background auto-sync of any unsynced local products
       if (unsynced.length > 0) {
-        fetch("/api/admin/products", {
+        adminFetch("/api/admin/products", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ products: unsynced }),
@@ -321,7 +322,7 @@ function ProductsAdmin() {
       const deletedIds = getDeletedProductIds();
       const validLocal = local.filter((p) => !deletedIds.has(p.id));
 
-      const res = await fetch("/api/admin/products", {
+      const res = await adminFetch("/api/admin/products", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ products: validLocal }),
@@ -397,22 +398,14 @@ function ProductsAdmin() {
   // Delete Mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      // 1. Delete locally and mark in persistent deleted registry
+      // 1. Delete on the server first; it checks the admin's permissions.
+      const res = await adminFetch(`/api/admin/products?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error(await readApiError(res));
+
+      // 2. Then drop it from this device's local store
       deleteLocalProduct(id);
-
-      // 2. Delete on backend server API
-      try {
-        await fetch(`/api/admin/products?id=${encodeURIComponent(id)}`, { method: "DELETE" });
-      } catch (err) {
-        console.warn("[API Product Delete]", err);
-      }
-
-      // 3. Delete directly from Supabase
-      try {
-        await supabase.from("products").delete().eq("id", id);
-      } catch (err) {
-        console.warn("[Supabase Product Delete]", err);
-      }
 
       await logActivity(`Deleted product: ${id}`);
       return id;
@@ -429,22 +422,16 @@ function ProductsAdmin() {
       toast.success("Product deleted successfully");
     },
     onError: (err) => {
-      toast.error("Failed to delete product: " + String(err));
+      toast.error(
+        "Failed to delete product: " + (err instanceof Error ? err.message : String(err)),
+      );
     },
   });
 
   // Quick Category Reassignment Handler
   const handleQuickCategoryChange = async (productId: string, newCategoryId: string) => {
+    // Saves locally and sends to the server; a rejected change shows an error toast.
     updateProductCategory(productId, newCategoryId);
-    try {
-      await fetch("/api/admin/products", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: productId, category_id: newCategoryId }),
-      });
-    } catch {
-      // ignore
-    }
     const catName = categoryMap.get(newCategoryId)?.name || newCategoryId;
     toast.success(`Product re-categorised into "${catName}"`);
     refetch();
@@ -565,26 +552,16 @@ function ProductsAdmin() {
     setIsBulkDeleting(true);
     const idsToDelete = [...selectedProductIds];
     try {
-      // 1. Delete locally & mark in persistent deleted registry
+      // 1. Delete on the server first; it checks the admin's permissions.
+      const res = await adminFetch("/api/admin/products", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: idsToDelete }),
+      });
+      if (!res.ok) throw new Error(await readApiError(res));
+
+      // 2. Then drop them from this device's local store
       deleteMultipleProducts(idsToDelete);
-
-      // 2. Delete on backend server API
-      try {
-        await fetch("/api/admin/products", {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ids: idsToDelete }),
-        });
-      } catch (err) {
-        console.warn("[API Bulk Delete]", err);
-      }
-
-      // 3. Delete directly from Supabase
-      try {
-        await supabase.from("products").delete().in("id", idsToDelete);
-      } catch (err) {
-        console.warn("[Supabase Bulk Delete]", err);
-      }
 
       await logActivity(`Bulk deleted ${idsToDelete.length} products`);
 

@@ -56,6 +56,7 @@ import {
 } from "@/data/reviews-store";
 import { useStoreAnalytics, type DurationFilter } from "@/data/analytics-store";
 import { toast } from "sonner";
+import { adminFetch } from "@/lib/admin-fetch";
 
 export const Route = createFileRoute("/admin/")({
   component: AdminDashboard,
@@ -111,7 +112,7 @@ export function AdminDashboard() {
 
     // Fetch live products from backend/Supabase
     const loadLiveProducts = () => {
-      fetch("/api/admin/products")
+      adminFetch("/api/admin/products")
         .then((r) => r.json())
         .then((res) => {
           if (isMounted && res && Array.isArray(res.products) && res.products.length > 0) {

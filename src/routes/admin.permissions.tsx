@@ -236,17 +236,17 @@ function AdminPermissionsPage() {
     });
   }
 
-  function handleSave() {
-    setPersistedPerms(form);
+  async function handleSave() {
+    if (!(await setPersistedPerms(form))) return;
     logActivity("Updated role permissions for Standard Admin users");
     setSaved(true);
-    toast.success("Role permissions updated successfully");
+    toast.success("Role permissions saved — they now apply to every Admin account");
     setTimeout(() => setSaved(false), 3000);
   }
 
-  function handleReset() {
+  async function handleReset() {
     setForm({ ...DEFAULT_ADMIN_PERMISSIONS });
-    setPersistedPerms({ ...DEFAULT_ADMIN_PERMISSIONS });
+    if (!(await setPersistedPerms({ ...DEFAULT_ADMIN_PERMISSIONS }))) return;
     toast.info("Reset permissions to system defaults");
   }
 

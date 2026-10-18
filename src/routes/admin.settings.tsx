@@ -23,6 +23,7 @@ import {
   Store,
   ExternalLink,
 } from "lucide-react";
+import { adminFetch, readApiError } from "@/lib/admin-fetch";
 
 export const Route = createFileRoute("/admin/settings")({
   component: SettingsAdmin,
@@ -184,7 +185,7 @@ function SettingsAdmin() {
           });
 
           // Post to backend API
-          fetch("/api/admin/settings", {
+          adminFetch("/api/admin/settings", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -221,7 +222,7 @@ function SettingsAdmin() {
     queryKey: ["admin", "site_settings"],
     queryFn: async () => {
       try {
-        const res = await fetch("/api/admin/settings");
+        const res = await adminFetch("/api/admin/settings");
         if (res.ok) {
           const json = await res.json();
           return json;
@@ -305,8 +306,9 @@ function SettingsAdmin() {
         });
       }
 
-      // 3. Post directly to server API to ensure cross-device database persistence
-      try {
+      // 3. Post to the server API: only the database makes changes visible on other devices,
+      //    so a failure here must fail the save instead of reporting success.
+      {
         const payload = {
           ...form,
           x_url: form.x_url || form.xUrl,
@@ -323,18 +325,17 @@ function SettingsAdmin() {
           },
         };
 
-        const res = await fetch("/api/admin/settings", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          console.warn("API settings save warning:", errData);
+        let res: Response;
+        try {
+          res = await adminFetch("/api/admin/settings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+        } catch {
+          throw new Error("Could not reach the server. Check your connection and save again.");
         }
-      } catch (err) {
-        console.warn("Failed to post settings to API:", err);
+        if (!res.ok) throw new Error(await readApiError(res));
       }
 
       await logActivity("Updated site settings and delivery hub configuration");
@@ -345,6 +346,11 @@ function SettingsAdmin() {
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
       toast.success("Settings saved and synced across all devices!");
+    },
+    onError: (err) => {
+      toast.error(
+        `Settings were not saved to the database: ${err instanceof Error ? err.message : String(err)}`,
+      );
     },
   });
 

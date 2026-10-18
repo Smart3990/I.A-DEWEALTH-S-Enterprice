@@ -13,6 +13,7 @@ import {
   Minus,
   Plus,
   Loader2,
+  ShoppingCart,
 } from "lucide-react";
 import {
   ancestorsOf,
@@ -57,6 +58,9 @@ const findProduct = (id: string): CatalogProduct | undefined => {
   return undefined;
 };
 
+// Product ids and slugs are interpolated into a PostgREST filter, so strip filter syntax.
+const toFilterValue = (value: string) => value.replace(/[^\w.-]/g, "");
+
 export const Route = createFileRoute("/product/$id")({
   loader: async ({ params, context }) => {
     const rawId = (params.id || "").trim();
@@ -84,7 +88,7 @@ export const Route = createFileRoute("/product/$id")({
       const { data } = await supabase
         .from("products")
         .select("*")
-        .or(`id.eq.${rawId},slug.eq.${rawId}`)
+        .or(`id.eq.${toFilterValue(rawId)},slug.eq.${toFilterValue(rawId)}`)
         .maybeSingle();
       if (data) {
         const { mapProduct } = await import("@/data/storefront");
@@ -172,7 +176,7 @@ function ProductDetail() {
 
   const product = productFromPool || asyncProduct || loaderData?.product;
 
-  const { addToCart, favorites, toggleFavorite } = useStore();
+  const { addToCart, favorites, toggleFavorite, count, addedPulse, maxQtyFor } = useStore();
   const [quantity, setQuantity] = useState(1);
   const [active, setActive] = useState(0);
   const [imageFit, setImageFit] = useState<"cover" | "contain">("cover");
@@ -202,7 +206,11 @@ function ProductDetail() {
 
     import("@/integrations/supabase/client")
       .then(({ supabase }) =>
-        supabase.from("products").select("*").or(`id.eq.${id},slug.eq.${id}`).maybeSingle(),
+        supabase
+          .from("products")
+          .select("*")
+          .or(`id.eq.${toFilterValue(id)},slug.eq.${toFilterValue(id)}`)
+          .maybeSingle(),
       )
       .then(({ data }) => {
         if (!isMounted) return;
@@ -258,6 +266,8 @@ function ProductDetail() {
   const discount = discountOf(product);
   const liked = favorites.includes(product.id);
   const isVehicle = ancestorsOf(product.categoryId).some((c) => c.id === "cars-vehicles");
+  const soldOut = product.availability === "Out of Stock" || product.stock === 0;
+  const maxQty = maxQtyFor({ stock: soldOut ? 0 : product.stock });
   const related = productsInCategory(product.categoryId)
     .filter((p) => p.id !== product.id)
     .slice(0, 4);
@@ -284,14 +294,29 @@ function ProductDetail() {
         <span className="text-xs font-extrabold text-foreground truncate max-w-[170px]">
           {product.brand}
         </span>
-        <button
-          type="button"
-          onClick={() => toggleFavorite(product.id)}
-          className="p-1 text-foreground hover:text-primary transition"
-          aria-label={liked ? "Remove from saved" : "Save to favorites"}
-        >
-          <Heart className={`h-4 w-4 ${liked ? "fill-deal text-deal" : "text-muted-foreground"}`} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => toggleFavorite(product.id)}
+            className="p-1 text-foreground hover:text-primary transition"
+            aria-label={liked ? "Remove from saved" : "Save to favorites"}
+          >
+            <Heart
+              className={`h-4 w-4 ${liked ? "fill-deal text-deal" : "text-muted-foreground"}`}
+            />
+          </button>
+          <Link to="/cart" aria-label={`Cart, ${count} items`} className="relative p-1">
+            <ShoppingCart className="h-5 w-5 text-foreground" strokeWidth={2} />
+            {count > 0 && (
+              <span
+                key={addedPulse}
+                className="absolute -right-1 -top-1 flex h-4 min-w-4 animate-[cart-pop_0.45s_ease-out] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground"
+              >
+                {count > 99 ? "99+" : count}
+              </span>
+            )}
+          </Link>
+        </div>
       </div>
 
       <Breadcrumbs trail={[...trail, { name: product.name }]} />
@@ -474,12 +499,12 @@ function ProductDetail() {
                   <input
                     type="number"
                     min={1}
-                    max={product.stock || 99}
+                    max={Math.max(1, maxQty)}
                     value={quantity}
                     onChange={(e) => {
                       const val = parseInt(e.target.value, 10);
                       if (!isNaN(val) && val >= 1) {
-                        setQuantity(val);
+                        setQuantity(Math.min(val, Math.max(1, maxQty)));
                       } else if (e.target.value === "") {
                         setQuantity(1);
                       }
@@ -488,9 +513,10 @@ function ProductDetail() {
                   />
                   <button
                     type="button"
-                    onClick={() => setQuantity((q) => q + 1)}
+                    onClick={() => setQuantity((q) => Math.min(q + 1, Math.max(1, maxQty)))}
+                    disabled={quantity >= maxQty}
                     aria-label="Increase quantity"
-                    className="flex h-10 w-10 items-center justify-center rounded-r-xl text-foreground hover:bg-muted/80 transition"
+                    className="flex h-10 w-10 items-center justify-center rounded-r-xl text-foreground hover:bg-muted/80 disabled:opacity-30 disabled:cursor-not-allowed transition"
                   >
                     <Plus className="h-4 w-4" />
                   </button>
@@ -513,12 +539,21 @@ function ProductDetail() {
                 </a>
               ) : (
                 <button
-                  onClick={() =>
-                    addToCart(product.id, product.name, product.price, product.image, quantity)
-                  }
-                  className="rounded-xl bg-primary px-6 py-3.5 text-sm font-extrabold text-primary-foreground shadow-lg transition hover:bg-primary-dark"
+                  disabled={soldOut}
+                  onClick={() => {
+                    const added = addToCart(
+                      product.id,
+                      product.name,
+                      product.price,
+                      product.image,
+                      quantity,
+                      { stock: soldOut ? 0 : product.stock },
+                    );
+                    if (added) setQuantity(1);
+                  }}
+                  className="rounded-xl bg-primary px-6 py-3.5 text-sm font-extrabold text-primary-foreground shadow-lg transition hover:bg-primary-dark disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground disabled:shadow-none"
                 >
-                  Add to Cart {quantity > 1 ? `(${quantity})` : ""}
+                  {soldOut ? "Out of stock" : `Add to Cart ${quantity > 1 ? `(${quantity})` : ""}`}
                 </button>
               )}
               <button

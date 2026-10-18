@@ -90,9 +90,6 @@ function createMockSupabaseClient() {
   } as unknown as ReturnType<typeof createClient<Database>>;
 }
 
-const DEFAULT_SUPABASE_URL = "https://olhxisnuqdqelkaxvroi.supabase.co";
-const DEFAULT_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_ADWuB_lQsQchIV8oOsRHVw_8nz4Cl7k";
-
 function createSupabaseClient() {
   // Use import.meta.env for client-side (Vite build-time replacement)
   // Fall back to process.env for SSR (server-side rendering)
@@ -101,15 +98,13 @@ function createSupabaseClient() {
     import.meta.env["VITE_SUPABASE_URL"] ||
     (typeof process !== "undefined"
       ? process.env?.["VITE_SUPABASE_URL"] || process.env?.["SUPABASE_URL"]
-      : undefined) ||
-    DEFAULT_SUPABASE_URL;
+      : undefined);
   const SUPABASE_PUBLISHABLE_KEY =
     import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
     import.meta.env["VITE_SUPABASE_PUBLISHABLE_KEY"] ||
     (typeof process !== "undefined"
       ? process.env?.["VITE_SUPABASE_PUBLISHABLE_KEY"] || process.env?.["SUPABASE_PUBLISHABLE_KEY"]
-      : undefined) ||
-    DEFAULT_SUPABASE_PUBLISHABLE_KEY;
+      : undefined);
 
   if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
     console.warn("[Supabase] Missing Supabase environment variable(s). Mock client active.");

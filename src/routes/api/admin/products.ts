@@ -285,6 +285,8 @@ async function formatDbRow(
     body.is_bestseller || body.isBestseller || body.bestSeller || body.is_best_seller,
   );
 
+  // Columns of the live products table. brand, seller, condition and availability have no
+  // columns of their own and live inside `specifications`.
   return {
     id,
     title,
@@ -321,8 +323,14 @@ async function formatDbRow(
 export const Route = createFileRoute("/api/admin/products")({
   server: {
     handlers: {
-      GET: async () => {
+      GET: async ({ request }) => {
         try {
+          const { requireAdminRequest } = await import("@/lib/admin-guard.server");
+          const caller = await requireAdminRequest(request, {
+            permission: ["products", "canView"],
+          });
+          if (caller instanceof Response) return caller;
+
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
           // Allow unlimited products retrieval up to 10,000 items
           const { data, error } = await supabaseAdmin
@@ -353,6 +361,12 @@ export const Route = createFileRoute("/api/admin/products")({
 
       POST: async ({ request }) => {
         try {
+          const { requireAdminRequest } = await import("@/lib/admin-guard.server");
+          const caller = await requireAdminRequest(request, {
+            permission: ["products", "canEdit", "canCreate"],
+          });
+          if (caller instanceof Response) return caller;
+
           const rawBody = await request.json();
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
@@ -376,6 +390,42 @@ export const Route = createFileRoute("/api/admin/products")({
               { error: "No valid product data provided. Product ID is required." },
               { status: 400 },
             );
+          }
+
+          // Quick edits (stock, category) send only an id plus a few fields: update just those
+          // fields instead of rebuilding the row, which would reset the title and price.
+          const isPartial = (item: Record<string, unknown>) =>
+            !("title" in item) && !("name" in item) && !("price" in item);
+          const [single] = items;
+          if (items.length === 1 && single && isPartial(single)) {
+            const patch: {
+              updated_at: string;
+              stock?: number;
+              category_id?: string | null;
+              is_active?: boolean;
+            } = { updated_at: new Date().toISOString() };
+            const stock = single["stock"];
+            if (typeof stock === "number") {
+              patch.stock = Math.max(0, stock);
+            }
+            const cat = single["category_id"] ?? single["categoryId"];
+            if (cat !== undefined) patch.category_id = cat ? String(cat) : null;
+            if (single["is_active"] !== undefined) patch.is_active = Boolean(single["is_active"]);
+
+            const { data, error } = await supabaseAdmin
+              .from("products")
+              .update(patch)
+              .eq("id", String(single["id"]))
+              .select();
+            if (error) return Response.json({ error: error.message }, { status: 500 });
+            if (!data?.length) {
+              return Response.json(
+                { error: "This product has not been saved to the database yet." },
+                { status: 404 },
+              );
+            }
+            const saved = normalizeProductRow(data[0] as Record<string, unknown>);
+            return Response.json({ success: true, count: 1, product: saved, products: [saved] });
           }
 
           // Fetch valid category IDs from Supabase to prevent foreign key errors
@@ -424,6 +474,12 @@ export const Route = createFileRoute("/api/admin/products")({
 
       DELETE: async ({ request }) => {
         try {
+          const { requireAdminRequest } = await import("@/lib/admin-guard.server");
+          const caller = await requireAdminRequest(request, {
+            permission: ["products", "canDelete"],
+          });
+          if (caller instanceof Response) return caller;
+
           const url = new URL(request.url);
           let ids: string[] = [];
 
@@ -463,8 +519,17 @@ export const Route = createFileRoute("/api/admin/products")({
           }
 
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+          const wantsAll =
+            ids.includes("all") || ids.includes("*") || url.searchParams.get("all") === "true";
+          if (wantsAll && caller.role !== "super_admin") {
+            return Response.json(
+              { error: "Only a System Admin can delete every product." },
+              { status: 403 },
+            );
+          }
+
           let deleteResult;
-          if (ids.includes("all") || ids.includes("*") || url.searchParams.get("all") === "true") {
+          if (wantsAll) {
             // Delete all products permanently from database
             deleteResult = await supabaseAdmin
               .from("products")

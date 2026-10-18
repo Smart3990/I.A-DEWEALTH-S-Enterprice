@@ -26,6 +26,12 @@ export const Route = createFileRoute("/api/admin/categories")({
 
       POST: async ({ request }) => {
         try {
+          const { requireAdminRequest } = await import("@/lib/admin-guard.server");
+          const caller = await requireAdminRequest(request, {
+            permission: ["categories", "canEdit"],
+          });
+          if (caller instanceof Response) return caller;
+
           const body = await request.json();
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
@@ -91,6 +97,12 @@ export const Route = createFileRoute("/api/admin/categories")({
 
       DELETE: async ({ request }) => {
         try {
+          const { requireAdminRequest } = await import("@/lib/admin-guard.server");
+          const caller = await requireAdminRequest(request, {
+            permission: ["categories", "canDelete"],
+          });
+          if (caller instanceof Response) return caller;
+
           const url = new URL(request.url);
           const id = url.searchParams.get("id");
           if (!id) {

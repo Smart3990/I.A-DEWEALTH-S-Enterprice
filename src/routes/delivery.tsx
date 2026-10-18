@@ -14,10 +14,9 @@ import {
   Send,
   Twitter,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useSite, useSiteConfig, whatsappLink } from "@/data/site";
 import { WHATSAPP } from "@/data/products";
-import { addInquiry } from "@/data/inquiries-store";
+import { addInquiry, getInquiries, saveInquiries } from "@/data/inquiries-store";
 
 export const Route = createFileRoute("/delivery")({
   head: () => ({
@@ -140,27 +139,6 @@ function DeliveryPage() {
         });
       }
 
-      // Also log to inquiries table for extra reliability
-      try {
-        await supabase.from("inquiries").insert({
-          item_count: 1,
-          items: [
-            {
-              type: "customer_message",
-              name: fullName.trim(),
-              phone: phoneNumber.trim(),
-              email: email.trim(),
-              subject: subject.trim(),
-              message: message.trim(),
-            },
-          ],
-          note: `Customer Message:\nFrom: ${fullName.trim()} (${phoneNumber.trim() || email.trim()})\nSubject: ${subject.trim()}\nMessage: ${message.trim()}`,
-          status: "new",
-          total: 0,
-        });
-      } catch {
-        // silent
-      }
     } catch (err) {
       console.warn("Notice: Saved to local store; remote sync status:", err);
       addInquiry({

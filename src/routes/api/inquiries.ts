@@ -31,8 +31,14 @@ function parseStoredMessage(rawMessage: string) {
 export const Route = createFileRoute("/api/inquiries")({
   server: {
     handlers: {
-      GET: async () => {
+      GET: async ({ request }) => {
         try {
+          const { requireAdminRequest } = await import("@/lib/admin-guard.server");
+          const caller = await requireAdminRequest(request, {
+            permission: ["inquiries", "canView"],
+          });
+          if (caller instanceof Response) return caller;
+
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
           const { data, error } = await supabaseAdmin
             .from("customer_inquiries")
@@ -140,6 +146,12 @@ export const Route = createFileRoute("/api/inquiries")({
 
       PATCH: async ({ request }) => {
         try {
+          const { requireAdminRequest } = await import("@/lib/admin-guard.server");
+          const caller = await requireAdminRequest(request, {
+            permission: ["inquiries", "canRespond"],
+          });
+          if (caller instanceof Response) return caller;
+
           const body = await request.json();
           const { id, status, notes } = body;
 
@@ -189,6 +201,12 @@ export const Route = createFileRoute("/api/inquiries")({
 
       DELETE: async ({ request }) => {
         try {
+          const { requireAdminRequest } = await import("@/lib/admin-guard.server");
+          const caller = await requireAdminRequest(request, {
+            permission: ["inquiries", "canDelete"],
+          });
+          if (caller instanceof Response) return caller;
+
           const url = new URL(request.url, "http://localhost:3000");
           const id = url.searchParams.get("id");
           if (!id) {

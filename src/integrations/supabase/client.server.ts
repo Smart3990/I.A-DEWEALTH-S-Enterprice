@@ -93,15 +93,10 @@ function createMockSupabaseAdminClient() {
   } as unknown as ReturnType<typeof createClient<Database>>;
 }
 
-const DEFAULT_SUPABASE_URL = "https://olhxisnuqdqelkaxvroi.supabase.co";
-const DEFAULT_SUPABASE_SERVICE_ROLE_KEY =
-  "";
-
+// Never hard-code the service role key: it bypasses every RLS policy. Set it in .env / the host.
 function createSupabaseAdminClient() {
-  const SUPABASE_URL =
-    process.env["SUPABASE_URL"] || process.env["VITE_SUPABASE_URL"] || DEFAULT_SUPABASE_URL;
-  const SUPABASE_SERVICE_ROLE_KEY =
-    process.env["SUPABASE_SERVICE_ROLE_KEY"] || DEFAULT_SUPABASE_SERVICE_ROLE_KEY;
+  const SUPABASE_URL = process.env["SUPABASE_URL"] || process.env["VITE_SUPABASE_URL"];
+  const SUPABASE_SERVICE_ROLE_KEY = process.env["SUPABASE_SERVICE_ROLE_KEY"];
 
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     console.warn("[Supabase Admin] Missing Supabase environment variable(s). Mock client active.");

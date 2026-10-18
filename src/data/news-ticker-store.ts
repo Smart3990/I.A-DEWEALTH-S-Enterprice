@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { WHATSAPP } from "./products";
+import { adminFetch, sendAdminChange } from "@/lib/admin-fetch";
 
 export interface NewsItem {
   id: string;
@@ -166,11 +167,11 @@ export function saveNewsTickerConfig(next: NewsTickerConfig): NewsTickerConfig {
     window.dispatchEvent(new Event(EVENT_KEY));
 
     if (typeof window !== "undefined") {
-      fetch("/api/admin/news", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(normalized),
-      }).catch(() => {});
+      void sendAdminChange(
+        "/api/admin/news",
+        { method: "POST", body: JSON.stringify(normalized) },
+        "News ticker was not saved to the database",
+      );
     }
   } catch (err) {
     console.error("Failed to save news ticker config:", err);
@@ -192,7 +193,7 @@ export function useNewsTicker(): [NewsTickerConfig, (next: NewsTickerConfig) => 
 
     // Also fetch authoritative news ticker config from database
     if (typeof window !== "undefined") {
-      fetch("/api/admin/news")
+      adminFetch("/api/admin/news")
         .then((r) => r.json())
         .then((res) => {
           if (res && res.config) {

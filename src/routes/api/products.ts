@@ -129,8 +129,9 @@ export const Route = createFileRoute("/api/products")({
           return Response.json(
             { products: normalized, count: normalized.length, source: "database" },
             {
+              // Short CDN cache only: admin edits must reach every device within seconds.
               headers: {
-                "Cache-Control": "public, max-age=60, s-maxage=120, stale-while-revalidate=300",
+                "Cache-Control": "public, max-age=0, s-maxage=5, stale-while-revalidate=10",
               },
             },
           );

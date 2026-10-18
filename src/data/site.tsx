@@ -12,9 +12,16 @@ type SiteValue = {
   sections: HomeSection[];
   banners: Banner[];
   nav: NavItem[];
+  hub?: Record<string, unknown>;
 };
 
-const fallback: SiteValue = { settings: defaultSettings, sections: [], banners: [], nav: [] };
+const fallback: SiteValue = {
+  settings: defaultSettings,
+  sections: [],
+  banners: [],
+  nav: [],
+  hub: {},
+};
 
 const SiteContext = createContext<SiteValue>(fallback);
 
@@ -116,10 +123,34 @@ export function saveSiteConfig(patch: Partial<SiteConfig>): SiteConfig {
   return next;
 }
 
+/** Hub fields an admin can save on the server; they override this browser's copy. */
+const SERVER_HUB_KEYS = [
+  "storeDescription",
+  "visitUsLocation",
+  "workingHours",
+  "mapLocation",
+  "mapEmbedUrl",
+  "pickupInfo",
+  "deliveryAccraInfo",
+  "deliveryRegionsInfo",
+] as const;
+
+function serverOverrides(hub: Record<string, unknown> | undefined): Partial<SiteConfig> {
+  const out: Partial<SiteConfig> = {};
+  for (const key of SERVER_HUB_KEYS) {
+    const value = hub?.[key];
+    if (typeof value === "string" && value.trim()) out[key] = value;
+  }
+  return out;
+}
+
 export function useSiteConfig(): [SiteConfig, (patch: Partial<SiteConfig>) => void] {
   // Always initialize with DEFAULT_SITE_CONFIG to ensure server-rendered markup
   // and initial client hydration markup match 100%. Storage is loaded in useEffect.
-  const [config, setConfig] = useState<SiteConfig>(DEFAULT_SITE_CONFIG);
+  const [local, setConfig] = useState<SiteConfig>(DEFAULT_SITE_CONFIG);
+  // What the admin saved on the server wins, so every visitor sees the same delivery info.
+  const { hub } = useSite();
+  const config: SiteConfig = { ...local, ...serverOverrides(hub) };
 
   useEffect(() => {
     // Safely hydrate from localStorage after client-side mount

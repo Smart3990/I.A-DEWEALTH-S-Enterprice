@@ -1,3 +1,5 @@
+import { adminFetch, sendAdminChange } from "@/lib/admin-fetch";
+
 export interface CustomerInquiry {
   id: string;
   name: string;
@@ -109,7 +111,7 @@ export function getInquiries(): CustomerInquiry[] {
 
 export async function fetchInquiriesFromServer(): Promise<CustomerInquiry[]> {
   try {
-    const res = await fetch("/api/inquiries");
+    const res = await adminFetch("/api/inquiries");
     if (!res.ok) {
       return getInquiries();
     }
@@ -265,11 +267,11 @@ export function updateInquiryStatus(
   saveInquiries(updated);
 
   // Sync with server if it's a server UUID
-  fetch("/api/inquiries", {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id, status, notes }),
-  }).catch((err) => console.warn("Notice: Status updated locally:", err));
+  void sendAdminChange(
+    "/api/inquiries",
+    { method: "PATCH", body: JSON.stringify({ id, status, notes }) },
+    "Inquiry update was not saved to the database",
+  );
 }
 
 export function markInquiryAsRead(id: string): void {
@@ -296,9 +298,11 @@ export function deleteInquiry(id: string): void {
   saveInquiries(current.filter((item) => item.id !== id));
 
   // Sync deletion with server
-  fetch(`/api/inquiries?id=${encodeURIComponent(id)}`, {
-    method: "DELETE",
-  }).catch((err) => console.warn("Notice: Inquiry deleted locally:", err));
+  void sendAdminChange(
+    `/api/inquiries?id=${encodeURIComponent(id)}`,
+    { method: "DELETE" },
+    "Inquiry was not deleted from the database",
+  );
 }
 
 export function clearAllInquiries(): void {
@@ -307,7 +311,9 @@ export function clearAllInquiries(): void {
   saveInquiries([]);
 
   // Sync clear-all with server
-  fetch("/api/inquiries?id=all", {
-    method: "DELETE",
-  }).catch((err) => console.warn("Notice: Clear all inquiries sync warning:", err));
+  void sendAdminChange(
+    "/api/inquiries?id=all",
+    { method: "DELETE" },
+    "Inquiries were not cleared from the database",
+  );
 }

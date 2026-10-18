@@ -72,6 +72,8 @@ export type Storefront = {
   banners: Banner[];
   nav: NavItem[];
   settings: SiteSettings;
+  /** Delivery hub / location config saved from admin settings (banner JSON row). */
+  hub: Record<string, unknown>;
 };
 
 export const DEFAULT_SOCIAL_REDIRECT = "https://iadewealthsenterprice.netlify.app/";
@@ -376,20 +378,6 @@ export async function fetchStorefront(): Promise<Storefront> {
       });
     }
 
-    // Auto-sync any locally authored products that have not yet reached the cloud database
-    if (typeof window !== "undefined" && localProds.length > 0) {
-      const dbIdSet = new Set(mappedProds.map((p) => String(p.id)));
-      const unsynced = localProds.filter((p) => !dbIdSet.has(String(p.id)));
-      if (unsynced.length > 0) {
-        // Fire non-blocking bulk sync in the background
-        fetch("/api/admin/products", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ products: unsynced }),
-        }).catch((e) => console.warn("[Storefront auto-sync warning]", e));
-      }
-    }
-
     // Extract extended site config if saved in system banners
     let siteConfigExt: Record<string, any> = {};
     const rawBanners = banners.data ?? [];
@@ -480,6 +468,7 @@ export async function fetchStorefront(): Promise<Storefront> {
         isActive: r.is_active ?? true,
       })),
       settings: finalSettings,
+      hub: siteConfigExt,
     };
   } catch (err) {
     console.warn("[Storefront] Error loading storefront from database, using local fallback:", err);
@@ -490,6 +479,7 @@ export async function fetchStorefront(): Promise<Storefront> {
       banners: [],
       nav: [],
       settings: defaultSettings,
+      hub: {},
     };
   }
 }
@@ -504,6 +494,7 @@ export const storefrontQuery = queryOptions({
     banners: [],
     nav: [],
     settings: defaultSettings,
+    hub: {},
   }),
   staleTime: 30_000,
   refetchOnWindowFocus: false,

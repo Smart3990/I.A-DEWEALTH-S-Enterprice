@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { defaultSettings, DEFAULT_SOCIAL_REDIRECT, type SiteSettings } from "./storefront";
 import { getSiteConfig, saveSiteConfig } from "./site";
+import { adminFetch, sendAdminChange } from "@/lib/admin-fetch";
 
 export interface UnifiedSettings extends SiteSettings {
   workingHours: string;
@@ -199,48 +200,8 @@ export function saveUnifiedSettings(data: Record<string, any>): UnifiedSettings 
     console.error("Failed to save unified site settings:", e);
   }
 
-  // Attempt Supabase upsert non-blockingly
-  try {
-    const supabasePayload = {
-      id: "default",
-      store_name: next.storeName,
-      store_description: next.storeDescription,
-      logo_url: next.logoUrl,
-      favicon_url: next.faviconUrl,
-      whatsapp_number: next.whatsappNumber,
-      whatsapp_message: next.whatsappMessage,
-      phone: next.phone,
-      email: next.email,
-      address: next.address,
-      facebook: next.facebook,
-      instagram: next.instagram,
-      tiktok: next.tiktok,
-      x_url: next.xUrl,
-      youtube: next.youtube,
-      footer_description: next.footerDescription,
-      copyright_text: next.copyrightText,
-      favorites_enabled: next.favoritesEnabled,
-      cart_enabled: next.cartEnabled,
-      max_qty_per_product: next.maxQtyPerProduct,
-    };
-    if (typeof window !== "undefined") {
-      fetch("/api/admin/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(supabasePayload),
-      }).catch(() => {});
-    }
-
-    supabase
-      .from("site_settings")
-      .upsert(supabasePayload)
-      .then(({ error }) => {
-        if (error) console.warn("Supabase site_settings upsert error (local store active):", error);
-      })
-      .catch((e) => console.warn("Supabase sync caught:", e));
-  } catch {
-    // ignore
-  }
+  // Local cache only. Callers (Settings page, SuperDeals timer) send the change to
+  // /api/admin/settings themselves and report failures; a second copy here would race them.
 
   return next;
 }
@@ -256,7 +217,7 @@ export function useCurrentSiteSettings(): [UnifiedSettings, (data: Record<string
 
     // Also fetch server settings to ensure latest across all devices
     if (typeof window !== "undefined") {
-      fetch("/api/admin/settings")
+      adminFetch("/api/admin/settings")
         .then((r) => r.json())
         .then((res) => {
           if (res && res.settings) {
@@ -355,10 +316,10 @@ export async function saveSuperDealsDuration(hours: number, minutes: number, sec
       }),
     );
 
-    try {
-      await fetch("/api/admin/settings", {
+    await sendAdminChange(
+      "/api/admin/settings",
+      {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           superdeals_hours: h,
           superdeals_minutes: m,
@@ -367,9 +328,8 @@ export async function saveSuperDealsDuration(hours: number, minutes: number, sec
           superdealsMinutes: m,
           superdealsSeconds: s,
         }),
-      });
-    } catch (err) {
-      console.warn("SuperDeals timer server sync notice:", err);
-    }
+      },
+      "SuperDeals timer was not saved to the database",
+    );
   }
 }

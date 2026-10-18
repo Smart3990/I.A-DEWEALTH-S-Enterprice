@@ -1,6 +1,6 @@
 import { createFileRoute, Link, Outlet, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   Package,
@@ -26,8 +26,10 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminSession } from "@/lib/admin-auth";
+import { adminFetch } from "@/lib/admin-fetch";
+import { AdminSetupForm, useAdminSetupStatus } from "@/components/admin/AdminSetup";
 import { getPendingReviews } from "@/data/reviews-store";
-import { canAccessModule } from "@/data/permissions-store";
+import { canAccessModule, refreshAdminPermissions } from "@/data/permissions-store";
 import brandLogo from "@/assets/ia-dewealth-logo.png";
 
 export const Route = createFileRoute("/admin")({
@@ -199,6 +201,11 @@ function AdminLayout() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  // Menu visibility for Admins follows the shared rules saved on the server.
+  const [, setPermsVersion] = useState(0);
+  useEffect(() => {
+    if (role) void refreshAdminPermissions().then(() => setPermsVersion((v) => v + 1));
+  }, [role]);
 
   // Quick live badge counts
   const { data: counts } = useQuery({
@@ -207,7 +214,7 @@ function AdminLayout() {
       const [prods, cats, inqRes] = await Promise.all([
         supabase.from("products").select("id", { count: "exact", head: true }),
         supabase.from("categories").select("id", { count: "exact", head: true }),
-        fetch("/api/inquiries")
+        adminFetch("/api/inquiries")
           .then((r) => r.json())
           .then((d) => (Array.isArray(d?.inquiries) ? d.inquiries.length : 0))
           .catch(() => 0),
@@ -497,6 +504,8 @@ function AdminLogin() {
     await performSignIn(email, password);
   }
 
+  const setup = useAdminSetupStatus();
+
   return (
     <div className="relative flex min-h-screen w-full items-center justify-center bg-slate-50 p-4 antialiased selection:bg-[#00a884]/20">
       <div className="relative z-10 flex w-full max-w-[440px] flex-col items-center rounded-[24px] bg-white px-8 py-9 shadow-lg border-0 sm:px-10 sm:py-10">
@@ -518,73 +527,89 @@ function AdminLogin() {
           <p className="mt-3 text-[13.5px] font-medium text-slate-500">Admin dashboard</p>
         </div>
 
-        {/* Error Feedback */}
-        {error && (
-          <div className="mt-5 flex w-full items-start gap-2 rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive">
+        {setup.state === "unreachable" && (
+          <div className="mt-5 flex w-full items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>{error}</span>
+            <span>
+              The store database cannot be reached, so sign-in and saving will fail. Check the
+              Supabase settings in the server environment. ({setup.message})
+            </span>
           </div>
         )}
 
-        {/* Form Body */}
-        <form onSubmit={handleSignIn} className="mt-6 w-full space-y-4">
-          <div>
-            <label className="mb-2 block text-[10.5px] font-bold uppercase tracking-wider text-slate-500">
-              EMAIL ADDRESS
-            </label>
-            <input
-              type="email"
-              required
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@iadewealth.com"
-              className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-[14px] text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-[#00a884] focus:ring-4 focus:ring-[#00a884]/15"
-            />
-          </div>
-
-          <div>
-            <div className="mb-2 flex items-center justify-between">
-              <label className="block text-[10.5px] font-bold uppercase tracking-wider text-slate-500">
-                PASSWORD
-              </label>
-            </div>
-            <div className="relative">
-              <input
-                type={showPassword ? "text" : "password"}
-                required
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 pr-11 text-[14px] text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-[#00a884] focus:ring-4 focus:ring-[#00a884]/15"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 transition hover:text-slate-600"
-                aria-label={showPassword ? "Hide password" : "Show password"}
-              >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={busy}
-            className="mt-6 flex h-12 w-full cursor-pointer items-center justify-center rounded-xl bg-[#00a884] text-[15px] font-semibold text-white shadow-sm shadow-[#00a884]/25 transition hover:bg-[#009676] active:bg-[#008266] disabled:opacity-70"
-          >
-            {busy ? (
-              <div className="flex items-center gap-2">
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                <span>Accessing Dashboard…</span>
+        {setup.state === "needs-setup" ? (
+          <AdminSetupForm onCreated={performSignIn} />
+        ) : (
+          <>
+            {/* Error Feedback */}
+            {error && (
+              <div className="mt-5 flex w-full items-start gap-2 rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{error}</span>
               </div>
-            ) : (
-              "Access Dashboard"
             )}
-          </button>
-        </form>
+
+            {/* Form Body */}
+            <form onSubmit={handleSignIn} className="mt-6 w-full space-y-4">
+              <div>
+                <label className="mb-2 block text-[10.5px] font-bold uppercase tracking-wider text-slate-500">
+                  EMAIL ADDRESS
+                </label>
+                <input
+                  type="email"
+                  required
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="admin@iadewealth.com"
+                  className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-[14px] text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-[#00a884] focus:ring-4 focus:ring-[#00a884]/15"
+                />
+              </div>
+
+              <div>
+                <div className="mb-2 flex items-center justify-between">
+                  <label className="block text-[10.5px] font-bold uppercase tracking-wider text-slate-500">
+                    PASSWORD
+                  </label>
+                </div>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 pr-11 text-[14px] text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-[#00a884] focus:ring-4 focus:ring-[#00a884]/15"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 transition hover:text-slate-600"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={busy}
+                className="mt-6 flex h-12 w-full cursor-pointer items-center justify-center rounded-xl bg-[#00a884] text-[15px] font-semibold text-white shadow-sm shadow-[#00a884]/25 transition hover:bg-[#009676] active:bg-[#008266] disabled:opacity-70"
+              >
+                {busy ? (
+                  <div className="flex items-center gap-2">
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    <span>Accessing Dashboard…</span>
+                  </div>
+                ) : (
+                  "Access Dashboard"
+                )}
+              </button>
+            </form>
+          </>
+        )}
 
         <div className="mt-6 text-center text-xs text-slate-400">
           Powered by{" "}

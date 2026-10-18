@@ -3,7 +3,7 @@ import { Home, LayoutGrid, Zap, Heart, ShoppingBag } from "lucide-react";
 import { useStore } from "./store";
 
 export function MobileBottomNav() {
-  const { count, favorites } = useStore();
+  const { count, favorites, addedPulse } = useStore();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   // Hide bottom nav if user is inside the admin panel
@@ -75,7 +75,14 @@ export function MobileBottomNav() {
                 />
                 {/* Number Badge for cart or favorites */}
                 {typeof item.count === "number" && item.count > 0 && (
-                  <span className="absolute -top-1.5 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-white shadow-xs">
+                  <span
+                    key={item.label === "Cart" ? addedPulse : undefined}
+                    className={`absolute -top-1.5 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-white shadow-xs ${
+                      item.label === "Cart" && addedPulse > 0
+                        ? "animate-[cart-pop_0.45s_ease-out]"
+                        : ""
+                    }`}
+                  >
                     {item.count > 99 ? "99+" : item.count}
                   </span>
                 )}

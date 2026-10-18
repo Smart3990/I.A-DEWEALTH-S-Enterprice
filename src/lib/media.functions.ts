@@ -1,8 +1,17 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { uploadToCloudinary, deleteFromCloudinary } from "./cloudinary.server";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function assertStaff(supabase: any, userId: string) {
+  const { data, error } = await supabase.rpc("is_staff", { _user_id: userId });
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("Only administrators can manage the media library");
+}
 
 export const uploadMediaFile = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) =>
     z
       .object({
@@ -13,7 +22,8 @@ export const uploadMediaFile = createServerFn({ method: "POST" })
       })
       .parse(data),
   )
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    await assertStaff(context.supabase, context.userId);
     let finalUrl = "";
     let publicId = "";
     let fileSize = data.size;
@@ -119,6 +129,7 @@ export const uploadMediaFile = createServerFn({ method: "POST" })
   });
 
 export const deleteMediaFile = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) =>
     z
       .object({
@@ -127,7 +138,8 @@ export const deleteMediaFile = createServerFn({ method: "POST" })
       })
       .parse(data),
   )
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    await assertStaff(context.supabase, context.userId);
     if (data.path) {
       try {
         await deleteFromCloudinary(data.path);

@@ -5,6 +5,10 @@ export const Route = createFileRoute("/api/admin/upload")({
     handlers: {
       POST: async ({ request }) => {
         try {
+          const { requireAdminRequest } = await import("@/lib/admin-guard.server");
+          const caller = await requireAdminRequest(request);
+          if (caller instanceof Response) return caller;
+
           const body = await request.json().catch(() => ({}));
           const rawData = body?.image || body?.base64Data || body?.fileData || "";
           const filename = String(body?.filename || "product-image").trim();

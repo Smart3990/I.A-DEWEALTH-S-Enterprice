@@ -49,6 +49,12 @@ export const Route = createFileRoute("/api/admin/settings")({
 
       POST: async ({ request }) => {
         try {
+          const { requireAdminRequest } = await import("@/lib/admin-guard.server");
+          const caller = await requireAdminRequest(request, {
+            permission: ["settings", "canEdit"],
+          });
+          if (caller instanceof Response) return caller;
+
           const body = await request.json();
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
